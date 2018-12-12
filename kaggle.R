@@ -148,13 +148,81 @@ time_series <- function(dt, col, periode){ #peut être ajouter une option de typ
 time_series(glob, "sessionId", "date")
 
 
+#Fonction Histogramme auto par mois / semaine / autre
+
+
+
 
 
 
 #Distribution dollartransactionrevenue ( = transactionRevenue passé en dollar)
 
+#Ajout de la colonne de la somme de la transaction revenue, par personne 
+tmp = glob[, sum(transactionRevenue), by="fullVisitorId"]
+colnames(tmp) = c("fullVisitorId", "sumTransactionRevenue")
+glob = merge(glob, tmp, by="fullVisitorId", all.x = TRUE)
+
+
+#Variables Quali
+#Exemple, si une personne a utilisé 3 fois un mac et 2 fois un pc, on considèrera qu'il utilise un PC
+
+quali_rework <- function(dt, col, periode){ 
+  
+
+}
+
+
+
+tmp = glob[, .N, by=c("fullVisitorId", "operatingSystem")] #Calcul des combinaisons
+
+tmp = tmp[duplicated(tmp, by = "fullVisitorId") | 
+       duplicated(tmp, by = "fullVisitorId", fromLast = TRUE)] #prendre les duppliqués
+
+tmp$hasMultiple = "TRUE"
+
+
+tmp = tmp[tmp[, .I[N == max(N)], by=fullVisitorId]$V1] #Prendre les max
+
+#Dans le cas où égalité entre plusieurs, on en prend un de deux au pif
+tmp = tmp[!duplicated(tmp$fullVisitorId)]
+
+#Remerge avec le dt
+#glob = glob[! glob$fullVisitorId %in% tmp$fullVisitorId]
+tmp = tmp[,-"N"]
+glob = merge (glob, tmp, by=c("fullVisitorId", "operatingSystem"), all.x = TRUE)
+
+#Ici (trouver le bon merge pour ajouter qu'aux bonnes colonnes)
+#Verif: 
+glob[glob$fullVisitorId == "0018374382198345820"] #Doit en avoir plusieurs
+
+glob = glob[!(glob$fullVisitorId %in% tmp$fullVisitorId & is.na(glob$hasMultiple))]
+
+#Là, on va encore avoir des lignes, car on merge par c("fullVisitorId", "operatingSystem"), mais ya toujours plusieurs lignes en cas d'utilisation de la meme c("fullVisitorId", "operatingSystem")
+
+glob[glob$fullVisitorId == "0018374382198345820"] #Doit en avoir moins. Mais pas qu'un seul, car si si il a utilisé plusieurs trucs, bah il va pas savoir lequel choisir. Mais on recoupera plus tard
+
+
+#fin: changer le nom de la dernière colonne, sauf à la première itération
+#names(glob)[length(names(glob))] = paste("hasMultiple"+lenomdelavaràtraiter dans la fonction) #genre hasMultipleSource
+
+#Todo: faire une fonction
+#todo2: seter les autres règles de gestion
+
+#
+
 
 #Check des proportions de transactionrevenue en fonction de différentes variables
+
+
+
+
+
+
+
+# Règles de transformation des features pour un nouveau data set groupé par accs id only ####
+
+
+
 
 
 #Test d'un premier modèle sans features engineering ####
