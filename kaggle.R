@@ -7,6 +7,9 @@ wd = "C:/Users/gauss/Google Drive/A5/Data Science/Apprentissage/Kaggle/"
 
 wd = "~/Google Drive/A5/Data Science/Apprentissage/Kaggle/kaggle_google_revenue/"
 
+wd = "C:/Users/arthu/OneDrive - De Vinci/ESILV/A5/Apprentissage/Kaggle_projet/Dev/kaggle_google_revenue"
+#test
+
 setwd(wd)
 rm(wd)
 require(jsonlite) 
