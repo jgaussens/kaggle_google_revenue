@@ -16,6 +16,7 @@ require(questionr) #Pour un accès visuel facile des proportions par variable
 require(dummies)
 require(dplyr)
 require(ggplot2)
+require(dummies)
 
 # lecture des données ####
 train<-read.csv("../data/train.csv",stringsAsFactors = FALSE,colClasses=c("character","integer","character","character","character","character","character","character","character","integer","integer","integer")) ; 
@@ -117,7 +118,7 @@ glob = merge(glob, tmp, by="fullVisitorId", all.x = TRUE)
 
 glob$logTransactionRevenue = log1p(glob$transactionRevenue)
 glob$logSumTransactionRevenue = log1p(glob$sumTransactionRevenue)
-
+#
 
 
 #test dun truc mais ballec ####
@@ -153,7 +154,7 @@ time_series <- function(dt, col, periode){ #peut être ajouter une option de typ
 }
 
 #spécifier glob, la variable qu'on veut plotter entre guillements, et "month_year" si on veut par mois, "date" si on veut par jour
-time_series(glob, "sessionId", "date")
+time_series(glob, "region", "date")
 
 
 #Fonction Histogramme auto par mois / semaine / autre
@@ -172,8 +173,7 @@ time_series(glob, "sessionId", "date")
 #Exemple, si une personne a utilisé 3 fois un mac et 2 fois un pc, on considèrera qu'il utilise un PC
 
 quali_rework <- function(dt, col){ 
-  
-  
+
   
   tmp = dt[, .N, by=c("fullVisitorId", col)] #Calcul des combinaisons
   
@@ -188,15 +188,12 @@ quali_rework <- function(dt, col){
   #Dans le cas où égalité entre plusieurs, on en prend un de deux au pif
   tmp = tmp[!duplicated(tmp$fullVisitorId)]
   
-  tmp = tmp[,-"N"]
+  #tmp = tmp[,-"N"]
   dt = merge (dt, tmp, by=c("fullVisitorId"), all.x = TRUE)
   
   names(dt)[length(names(dt))] = paste0("hasMultiple", col) #genre hasMultipleSource
   
   return(dt)
-  
-
-  
 
 }
 
@@ -205,10 +202,47 @@ quali_rework <- function(dt, col){
 test = quali_rework(glob, "operatingSystem")
 test
 
+
+# test nouvelle fonction ####
+tmp = glob[, .N, by=c("fullVisitorId", "operatingSystem")] #Calcul des combinaisons
+
+tmp = tmp[duplicated(tmp, by = "fullVisitorId") | 
+            duplicated(tmp, by = "fullVisitorId", fromLast = TRUE)] #prendre les duppliqués
+
+tmp = glob[glob$fullVisitorId %in% tmp$fullVisitorId] #Doit en avoir plusieurs
+ncol1 = ncol(tmp)
+tmp = cbind(tmp,dummy(tmp$operatingSystem))
+ncol_change = ncol(tmp) - ncol1 
+
+tmp[, (ncol1+1):ncol(tmp)]
+
+
+tmp2 = dummy(tmp)
+
+tmp$hasMultiple = "TRUE"
+
+tmp = tmp[tmp[, .I[N == max(N)], by=fullVisitorId]$V1] #Prendre les max
+
+#Dans le cas où égalité entre plusieurs, on en prend un de deux au pif
+tmp = tmp[!duplicated(tmp$fullVisitorId)]
+
+#tmp = tmp[,-"N"]
+glob = merge (glob, tmp, by=c("fullVisitorId"), all.x = TRUE)
+
+names(glob)[length(names(glob))] = paste0("hasMultiple", "operatingSystem") #genre hasMultipleSource
+
+return(glob)
+
+
+
+
+
+
+library(dummies)
+tmp = dummy(glob)
 #Ici
 #à faire pour toutes les variables quali
 
-var_quali = 
 
 
 
@@ -217,9 +251,32 @@ sapply(seq_along(colnames(glob)), function(x) print(x))
 
 
 test$operatingSystem.x[test$fullVisitorId == "0018374382198345820"] #Doit en avoir plusieurs
+tmp = test[test$fullVisitorId == "0018374382198345820"] #Doit en avoir plusieurs
+tmp = cbind(tmp,dummy(tmp$operatingSystem.x))
+
+
+
+tmp[ , `:=`( COUNT = .N) , by = c("fullVisitorId", "operatingSystem.x")]
+tmp2 = transpose(tmp[, .N, by="operatingSystem.x"])
+colnames(tmp2) = as.character(tmp2[1,])
+tmp2 = tmp2[-1,]
+
+
+tmp3 = dummy(tmp$operatingSystem.x)
+tmp3 = as.data.table(tmp3)
+
+sapply(seq_along(colnames(tmp3)), function(x) print(x))
+
+
+
+# Modifier fonction ####
+#Faire un dummy par variable quali
+#Compter le nobmre de 1 Par colonne
+#ajouter le count par identifiant client 
+
 
 #
-
+test = 
 
 
 
