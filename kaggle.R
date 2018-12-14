@@ -105,12 +105,20 @@ tmp[, .N, by="N"]
 
 
 
-#Traitement de la cible TransactionRevenue ####
+#Traitement de la cible TransactionRevenue, ajout des logs1p, etc ####
 glob$transactionRevenue[is.na(glob$transactionRevenue)] <- 0
 
 #Ajout de la colonne log
-glob$logTransactionRevenue = log(glob$transactionRevenue)
 glob$dollarLogTransactionRevenue = glob$transactionRevenue / 1000000 #Pour plot plus concrets
+#Ajout de la colonne de la somme de la transaction revenue, par personne 
+tmp = glob[, sum(transactionRevenue), by="fullVisitorId"]
+colnames(tmp) = c("fullVisitorId", "sumTransactionRevenue")
+glob = merge(glob, tmp, by="fullVisitorId", all.x = TRUE)
+
+glob$logTransactionRevenue = log1p(glob$transactionRevenue)
+glob$logSumTransactionRevenue = log1p(glob$sumTransactionRevenue)
+
+
 
 #test dun truc mais ballec ####
 #aggregate by fullvisitorid mais à faire avec log et pas mean: pour log ça me met toutes les lignes pcq 
@@ -157,64 +165,83 @@ time_series(glob, "sessionId", "date")
 
 #Distribution dollartransactionrevenue ( = transactionRevenue passé en dollar)
 
-#Ajout de la colonne de la somme de la transaction revenue, par personne 
-tmp = glob[, sum(transactionRevenue), by="fullVisitorId"]
-colnames(tmp) = c("fullVisitorId", "sumTransactionRevenue")
-glob = merge(glob, tmp, by="fullVisitorId", all.x = TRUE)
+
 
 
 #Variables Quali
 #Exemple, si une personne a utilisé 3 fois un mac et 2 fois un pc, on considèrera qu'il utilise un PC
 
-quali_rework <- function(dt, col, periode){ 
+quali_rework <- function(dt, col){ 
+  
+  
+  
+  tmp = dt[, .N, by=c("fullVisitorId", col)] #Calcul des combinaisons
+  
+  tmp = tmp[duplicated(tmp, by = "fullVisitorId") | 
+              duplicated(tmp, by = "fullVisitorId", fromLast = TRUE)] #prendre les duppliqués
+  
+  tmp$hasMultiple = "TRUE"
+  
+  
+  tmp = tmp[tmp[, .I[N == max(N)], by=fullVisitorId]$V1] #Prendre les max
+  
+  #Dans le cas où égalité entre plusieurs, on en prend un de deux au pif
+  tmp = tmp[!duplicated(tmp$fullVisitorId)]
+  
+  tmp = tmp[,-"N"]
+  dt = merge (dt, tmp, by=c("fullVisitorId"), all.x = TRUE)
+  
+  names(dt)[length(names(dt))] = paste0("hasMultiple", col) #genre hasMultipleSource
+  
+  return(dt)
+  
+
   
 
 }
 
 
 
-tmp = glob[, .N, by=c("fullVisitorId", "operatingSystem")] #Calcul des combinaisons
+test = quali_rework(glob, "operatingSystem")
+test
 
-tmp = tmp[duplicated(tmp, by = "fullVisitorId") | 
-       duplicated(tmp, by = "fullVisitorId", fromLast = TRUE)] #prendre les duppliqués
+#Ici
+#à faire pour toutes les variables quali
 
-tmp$hasMultiple = "TRUE"
+var_quali = 
 
 
-tmp = tmp[tmp[, .I[N == max(N)], by=fullVisitorId]$V1] #Prendre les max
 
-#Dans le cas où égalité entre plusieurs, on en prend un de deux au pif
-tmp = tmp[!duplicated(tmp$fullVisitorId)]
+sapply(glob, function(x) length(unique(x)))
+sapply(seq_along(colnames(glob)), function(x) print(x))
 
-#Remerge avec le dt
-#glob = glob[! glob$fullVisitorId %in% tmp$fullVisitorId]
-tmp = tmp[,-"N"]
-glob = merge (glob, tmp, by=c("fullVisitorId", "operatingSystem"), all.x = TRUE)
 
-#Ici (trouver le bon merge pour ajouter qu'aux bonnes colonnes)
-#Verif: 
-glob[glob$fullVisitorId == "0018374382198345820"] #Doit en avoir plusieurs
+test$operatingSystem.x[test$fullVisitorId == "0018374382198345820"] #Doit en avoir plusieurs
 
-glob = glob[!(glob$fullVisitorId %in% tmp$fullVisitorId & is.na(glob$hasMultiple))]
+#
 
-#Là, on va encore avoir des lignes, car on merge par c("fullVisitorId", "operatingSystem"), mais ya toujours plusieurs lignes en cas d'utilisation de la meme c("fullVisitorId", "operatingSystem")
 
-glob[glob$fullVisitorId == "0018374382198345820"] #Doit en avoir moins. Mais pas qu'un seul, car si si il a utilisé plusieurs trucs, bah il va pas savoir lequel choisir. Mais on recoupera plus tard
 
 
 #fin: changer le nom de la dernière colonne, sauf à la première itération
 #names(glob)[length(names(glob))] = paste("hasMultiple"+lenomdelavaràtraiter dans la fonction) #genre hasMultipleSource
 
-#Todo: faire une fonction
-#todo2: seter les autres règles de gestion
+#Merde mais en fait j'ai perdu de l'info dans les lignes que j'ai enlevé
 
-#
+#Todo: checker les 4 lignes restantes sur notre exemple pour voir ce qu'on va garder
+#Todo: faire une fonction
+#todo2: seter les autres règles de gestion. 
+
+
 
 
 #Check des proportions de transactionrevenue en fonction de différentes variables
 
 
 
+#Exemple de vérif  ####
+#Verif: 
+glob[glob$fullVisitorId == "0018374382198345820"] #Doit en avoir plusieurs
 
 
 
