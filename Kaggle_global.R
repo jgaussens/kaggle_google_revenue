@@ -40,22 +40,39 @@ for (t in tables) {
 rm(partiel, train, test) ; gc()
 
 ## ### ## ## ### ## ### ## ### ## ### ## 
-#Analyse de la données, des NA, Remove de certaines colonnes
+
+
+#Lecture directe du fichier (plus rapide que la lecture totale puis le retraitement des JSONS) ####
+glob = fread("../data/glob.csv", stringsAsFactors = T)
+
+
+#Traitement de la cible TransactionRevenue, ajout des logs1p pour plus de clartÃ© ####
+glob$transactionRevenue[is.na(glob$transactionRevenue)] <- 0
+
+#Ajout de la colonne log
+glob$dollarLogTransactionRevenue = glob$transactionRevenue / 1000000 #Pour plot plus concrets
+#Ajout de la colonne de la somme de la transaction revenue, par personne 
+tmp = glob[, sum(transactionRevenue), by="fullVisitorId"]
+colnames(tmp) = c("fullVisitorId", "sumTransactionRevenue")
+glob = merge(glob, tmp, by="fullVisitorId", all.x = TRUE)
+
+glob$logTransactionRevenue = log1p(glob$transactionRevenue)
+glob$logSumTransactionRevenue = log1p(glob$sumTransactionRevenue)
+
+
+#Remove des NA, Remove et retypage de certaines colonnes ####
 ## ### ## ## ### ## ### ## ### ## ### ##
 
 #Explore
 str(glob)
 summary(glob)
 
-
 #Plot des NA
 require(DataExplorer)
 plot_missing(glob)
 
-
 #On supprime les NA quand NA% > 70% (except transactionrevenue)
 glob = glob[, !c("adContent", "page", "slot", "adNetworkType", "isVideoAd", "gclId")]
-
 
 #Visualiser le nombre d'occurence d'une variable, si elle est fixe (toujours la meme variable) on supprime
 sapply(glob, function(x) length(unique(x)))
@@ -76,30 +93,37 @@ numVars <- c("hits", "bounces", "pageviews", "newVisits")
 glob[, numVars] <- lapply(glob[, ..numVars], as.integer)
 rm(numVars)
 
-#Analyse de sessionId, par journée, par heure, par navigateur fermée ? 
+#Que faire des 'not available in demo dataset'
+
+
+
+# Analyses en tout genre en vue d'une future discrÃ©tisation####
+
+#Ajouter le reste des analyses globales
+
+#Analyse de sessionId, par journ?e, par heure, par navigateur ferm?e ? 
 tmp = glob[, .N, by="sessionId"] 
 tmp
 
 nrow(glob) - nrow(tmp)
 tmp[, .N, by="N"]
 
-# 1724/2 personnes qui ont ouvert 2 sessions la même journée
 
 
-#Ajouter le reste des analyses globales
-#...
+# Fonction d'histogramme 
 
 
 
-#Traitement de la cible TransactionRevenue, ajout des logs1p, etc ####
-glob$transactionRevenue[is.na(glob$transactionRevenue)] <- 0
 
-#Ajout de la colonne log
-glob$dollarLogTransactionRevenue = glob$transactionRevenue / 1000000 #Pour plot plus concrets
-#Ajout de la colonne de la somme de la transaction revenue, par personne 
-tmp = glob[, sum(transactionRevenue), by="fullVisitorId"]
-colnames(tmp) = c("fullVisitorId", "sumTransactionRevenue")
-glob = merge(glob, tmp, by="fullVisitorId", all.x = TRUE)
+# DiscrÃ©tisation des variables nÃ©cessaires (pour rÃ©duire les grosses dimensionnalitÃ©s) ####
 
-glob$logTransactionRevenue = log1p(glob$transactionRevenue)
-glob$logSumTransactionRevenue = log1p(glob$sumTransactionRevenue)
+
+
+
+
+# Test d'un premier ModÃ¨le Pour voir si il y a du jus ####
+
+
+
+
+
