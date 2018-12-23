@@ -4,6 +4,7 @@ wd = "~/Google Drive/A5/Data Science/Apprentissage/Kaggle/kaggle_google_revenue/
 
 setwd(wd)
 rm(wd)
+getwd()
 
 require(jsonlite) 
 require(data.table)
