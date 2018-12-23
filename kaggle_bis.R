@@ -163,6 +163,7 @@ globThumb = as.data.table(globThumb)
 
 
 #Frequences, discrétisation, etc ####
+sapply(glob, function(x) length(unique(x)))
 
 
 #networkDomain ####
@@ -171,9 +172,18 @@ freq_col(glob, "networkDomain", 10)
 tt = as.data.table(freq_col(globThumb, "networkDomain", 10))
 tmp = as.character(tt$Var1)
 
+glob$networkDomain[!glob$networkDomain %in% tmp] = "Autre"
 
-#
+#Country ####
+freq_col(glob, "country", 10)
+freq_col(globThumb, "country", 10)
 
+tt = as.data.table(freq_col(globThumb, "networkDomain", 10))
+tmp = as.character(tt$Var1)
+
+glob$networkDomain[!glob$networkDomain %in% tmp] = "Autre"
+
+# referralPath ####
 
 
 
