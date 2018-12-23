@@ -72,6 +72,41 @@ glob$isTransaction[glob$transactionRevenue == 0] = 0
 glob$isOnceTransaction[glob$sumTransactionRevenue != 0] = 1
 glob$isOnceTransaction[glob$sumTransactionRevenue == 0] = 0
 
+#Sous dataset qui contient uniquement les lignes avec achat
+globThumb = glob[glob$isTransaction == 1]
+
+
+#Bibliothèque de fonctions ####
+
+
+#Harmonisation des NA du dataset
+na_replacer <- function(data_set, characters_to_replace =  c("not available in demo dataset", "(not provided)",
+                                                             "(not set)", "<NA>", "unknown.unknown",  "(none)")) {
+  library(data.table)
+  setDT(data_set)
+  text_features <- names(data_set)[sapply(data_set, class) %in% c("character", "factor")]
+  for (x in text_features) {
+    foo <- data_set[, get(x)]
+    data_set[, eval(x) := ifelse(foo %in% characters_to_replace, NA, foo)]
+  }
+  return(data_set)
+}
+
+
+#Fonction de plot frequency
+freq_col <- function(dt, col, top){ 
+  
+  t = table(dt[[col]])
+  t = as.data.frame(t)
+  tt  <- t[order(t[,2],decreasing=TRUE),]
+  tt = tt[1:top,]
+  
+  ggplot(tt,aes(x= reorder(Var1,-Freq),Freq))+geom_bar(stat ="identity")
+  
+  return(tt)
+}
+
+
 
 
 #Remove des NA, Remove et retypage de certaines colonnes ####
@@ -107,7 +142,8 @@ numVars <- c("hits", "bounces", "pageviews", "newVisits")
 glob[, numVars] <- lapply(glob[, ..numVars], as.integer)
 rm(numVars)
 
-#Que faire des 'not available in demo dataset'
+#Harmonisation des NA
+na_replacer(glob)
 
 
 
@@ -123,8 +159,6 @@ nrow(glob) - nrow(tmp)
 tmp[, .N, by="N"]
 
 
-
-# Fonction d'histogramme 
 
 
 
