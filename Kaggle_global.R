@@ -3,6 +3,7 @@ wd = "C:/Users/arthu/OneDrive - De Vinci/ESILV/A5/Apprentissage/Kaggle_projet/De
 
 setwd(wd)
 rm(wd)
+getwd()
 
 require(jsonlite) 
 require(data.table)
