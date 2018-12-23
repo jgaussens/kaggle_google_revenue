@@ -1,4 +1,5 @@
 wd = "C:/Users/arthu/OneDrive - De Vinci/ESILV/A5/Apprentissage/Kaggle_projet/Dev/kaggle_google_revenue"
+wd = "~/Google Drive/A5/Data Science/Apprentissage/Kaggle/kaggle_google_revenue/"
 
 
 setwd(wd)
@@ -44,6 +45,8 @@ rm(partiel, train, test) ; gc()
 
 #Lecture directe du fichier (plus rapide que la lecture totale puis le retraitement des JSONS) ####
 glob = fread("../data/glob.csv", stringsAsFactors = T)
+glob = fread("../data/glob.csv", stringsAsFactors = F)
+
 
 
 #Traitement de la cible TransactionRevenue, ajout des logs1p pour plus de clarté ####
@@ -58,6 +61,16 @@ glob = merge(glob, tmp, by="fullVisitorId", all.x = TRUE)
 
 glob$logTransactionRevenue = log1p(glob$transactionRevenue)
 glob$logSumTransactionRevenue = log1p(glob$sumTransactionRevenue)
+
+#Colonne indiquant si achat par ligne
+glob$isTransaction[glob$transactionRevenue != 0] = 1
+glob$isTransaction[glob$transactionRevenue == 0] = 0
+
+
+#Colonne indiquant au moins un achat par access id
+glob$isOnceTransaction[glob$sumTransactionRevenue != 0] = 1
+glob$isOnceTransaction[glob$sumTransactionRevenue == 0] = 0
+
 
 
 #Remove des NA, Remove et retypage de certaines colonnes ####
