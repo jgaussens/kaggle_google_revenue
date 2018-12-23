@@ -59,46 +59,35 @@ for (t in tables) {
 glob = fread("../data/glob.csv", stringsAsFactors = F)
 #glob = fread("../data/glob.csv", stringsAsFactors = T)
 
+#Bibliothèque de fonctions ####
 
-## ### ## ## ### ## ### ## ### ## ### ## 
-#Analyse de la donnée, des NA, Remove de certaines colonnes ####
-## ### ## ## ### ## ### ## ### ## ### ##
-
-#Explore
-str(glob)
-summary(glob)
-
-
-#Part des NA
-require(DataExplorer)
-plot_missing(glob)
-
-
-#Removing NA Over 95% (except transactionrevenue)
-glob = glob[, !c("adContent", "page", "slot", "adNetworkType", "isVideoAd", "gclId")]
+#Harmonisation des NA du dataset
+na_replacer <- function(data_set, characters_to_replace =  c("not available in demo dataset", "(not provided)",
+                                                             "(not set)", "<NA>", "unknown.unknown",  "(none)", "")) {
+  library(data.table)
+  setDT(data_set)
+  text_features <- names(data_set)[sapply(data_set, class) %in% c("character", "factor")]
+  for (x in text_features) {
+    foo <- data_set[, get(x)]
+    data_set[, eval(x) := ifelse(foo %in% characters_to_replace, NA, foo)]
+  }
+  return(data_set)
+}
 
 
-#Visualiser le nombre de modalités par colonne, et enlever celles à 1
-sapply(glob, function(x) length(unique(x)))
-
-todrop <- names(glob)[which(sapply(glob,uniqueN)<2)]
-glob[, (todrop) := NULL]
-rm(todrop)
-
-plot_missing(glob) #Recheck des parts des missings
-
-
-#Retraitement des typages de certaines colonnes 
-
-glob$date = ymd(glob$date)
-glob$transactionRevenue = as.numeric(glob$transactionRevenue)
-
-#Passage de variables en int
-numVars <- c("hits", "bounces", "pageviews", "newVisits")
-glob[, numVars] <- lapply(glob[, ..numVars], as.integer)
-rm(numVars)
-
-
+#Fonction de plot frequency
+freq_col <- function(dt, col, top){ 
+  
+  t = table(dt[[col]])
+  t = as.data.frame(t)
+  tt  <- t[order(t[,2],decreasing=TRUE),]
+  tt = tt[1:top,]
+  
+  
+  print(ggplot(tt,aes(x= reorder(Var1,-Freq),Freq))+geom_bar(stat ="identity"))
+  
+  return(tt)
+}
 
 
 #Traitement de la cible TransactionRevenue, ajout des logs1p pour plus de clarté ####
@@ -124,58 +113,66 @@ glob$isOnceTransaction[glob$sumTransactionRevenue != 0] = 1
 glob$isOnceTransaction[glob$sumTransactionRevenue == 0] = 0
 
 
+
+
+## ### ## ## ### ## ### ## ### ## ### ## 
+#Traitement et Remove des NA, Remove de certaines colonnes ####
+## ### ## ## ### ## ### ## ### ## ### ##
+
+#Exploration
+str(glob)
+summary(glob)
+
+
+#Visualiser le nombre de modalités par colonne, et enlever celles uniques
+sapply(glob, function(x) length(unique(x)))
+
+todrop <- names(glob)[which(sapply(glob,uniqueN)<2)]
+glob[, (todrop) := NULL]
+rm(todrop)
+
+
+#Traitement des NA
+na_replacer(glob) #Fonction pour enlever les NA au global
+
+require(DataExplorer)
+plot_missing(glob)
+
+
+#Removing NA Over 95% (except transactionrevenue)
+
+glob = glob[, !c("adContent", "page", "slot", "adNetworkType", "isVideoAd", "gclId", "campaign", "keyword")]
+
+plot_missing(glob) #Recheck des parts des missings
+
+
+#Retraitement des typages de certaines colonnes 
+
+glob$date = ymd(glob$date)
+glob$transactionRevenue = as.numeric(glob$transactionRevenue)
+
+#Passage de variables en int
+numVars <- c("hits", "bounces", "pageviews", "newVisits")
+glob[, numVars] <- lapply(glob[, ..numVars], as.integer)
+rm(numVars)
+
+
 globThumb = glob[glob$isTransaction == 1]
-
-
-#Bibliothèque de fonctions ####
-
-#Harmonisation des NA du dataset
-na_replacer <- function(data_set, characters_to_replace =  c("not available in demo dataset", "(not provided)",
-                                                             "(not set)", "<NA>", "unknown.unknown",  "(none)")) {
-  library(data.table)
-  setDT(data_set)
-  text_features <- names(data_set)[sapply(data_set, class) %in% c("character", "factor")]
-  for (x in text_features) {
-    foo <- data_set[, get(x)]
-    data_set[, eval(x) := ifelse(foo %in% characters_to_replace, NA, foo)]
-  }
-  return(data_set)
-}
-
-
-#Fonction de plot frequency
-freq_col <- function(dt, col, top){ 
-  
-  t = table(dt[[col]])
-  t = as.data.frame(t)
-  tt  <- t[order(t[,2],decreasing=TRUE),]
-  tt = tt[1:top,]
-  
-  ggplot(tt,aes(x= reorder(Var1,-Freq),Freq))+geom_bar(stat ="identity")
-  
-  return(tt)
-}
-
-
+globThumb = as.data.table(globThumb)
 
 
 
 #Frequences, discrétisation, etc ####
 
 
-
-na_replacer(glob) #Fonction pour enlever les NA au global
-
-
 #networkDomain ####
-tmp = freq_col(glob, "networkDomain", 10)
+freq_col(glob, "networkDomain", 10)
+
+tt = as.data.table(freq_col(globThumb, "networkDomain", 10))
+tmp = as.character(tt$Var1)
 
 
-freq_col(globThumb, "networkDomain", 20)
-
-
-
-
+#
 
 
 
