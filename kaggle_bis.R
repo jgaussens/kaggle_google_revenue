@@ -55,7 +55,9 @@ for (t in tables) {
 
 
 #Lecture des données (simplifié) ####
-glob = fread("../data/glob.csv", stringsAsFactors = T)
+
+glob = fread("../data/glob.csv", stringsAsFactors = F)
+#glob = fread("../data/glob.csv", stringsAsFactors = T)
 
 
 ## ### ## ## ### ## ### ## ### ## ### ## 
@@ -99,8 +101,7 @@ rm(numVars)
 
 
 
-#Ajout des colonnes dollar, log, sum, etc ####
-
+#Traitement de la cible TransactionRevenue, ajout des logs1p pour plus de clarté ####
 glob$transactionRevenue[is.na(glob$transactionRevenue)] <- 0
 
 #Ajout de la colonne log
@@ -112,8 +113,59 @@ glob = merge(glob, tmp, by="fullVisitorId", all.x = TRUE)
 
 glob$logTransactionRevenue = log1p(glob$transactionRevenue)
 glob$logSumTransactionRevenue = log1p(glob$sumTransactionRevenue)
-#
-backup = glob
+
+#Colonne indiquant si achat par ligne
+glob$isTransaction[glob$transactionRevenue != 0] = 1
+glob$isTransaction[glob$transactionRevenue == 0] = 0
+
+
+#Colonne indiquant au moins un achat par access id
+glob$isOnceTransaction[glob$sumTransactionRevenue != 0] = 1
+glob$isOnceTransaction[glob$sumTransactionRevenue == 0] = 0
+
+
+globThumb = glob[glob$isTransaction == 1]
+
+
+#Frequences, discrétisation, etc ####
+
+
+
+#Fonction de plot frequency
+freq_col <- function(dt, col, top){ 
+  
+  t = table(dt[[col]])
+  t = as.data.frame(t)
+  tt  <- t[order(t[,2],decreasing=TRUE),]
+  tt = tt[1:top,]
+  
+  ggplot(tt,aes(x= reorder(Var1,-Freq),Freq))+geom_bar(stat ="identity")
+
+}
+
+
+
+#networkDomain ####
+freq_col(glob, "networkDomain", 10)
+
+glob
+
+
+freq_col(globThumb, "networkDomain", 20)
+
+
+
+
+
+
+
+
+  #
+
+
+
+
+
 
 
 
