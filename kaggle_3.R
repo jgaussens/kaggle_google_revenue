@@ -67,7 +67,9 @@ str(glob)
 
 
 # Premier Jet de modèle, pour voir si il y a du jus avant de feature engineering####
-h2o.init( max_mem_size = "6G")
+#h2o.init( max_mem_size = "6G")
+h2o.init(nthreads = -1)
+h2o.clusterInfo()
 
 glob <- glob %>% select(logSumTransactionRevenue,everything()) #pour placer flag pnf en premi?re column
 glob=glob[, -c("dollarLogTransactionRevenue", "transactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
@@ -106,7 +108,7 @@ system.time(
   
 )
 
- a# Get the grid results, sorted by AUC
+# Get the grid results, sorted by AUC
 drf_gridperf1 <- h2o.getGrid(grid_id = "drf_grid2", 
                              sort_by = "rmse", 
                              decreasing = TRUE)
