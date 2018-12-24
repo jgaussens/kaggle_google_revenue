@@ -57,7 +57,7 @@ for (t in tables) {
 #Lecture des données (simplifié) ####
 
 glob = fread("../data/glob.csv", stringsAsFactors = F)
-#glob = fread("../data/glob.csv", stringsAsFactors = T)
+glob = fread("../data/glob.csv", stringsAsFactors = T)
 
 #Bibliothèque de fonctions ####
 
@@ -166,7 +166,7 @@ globThumb = as.data.table(globThumb)
 sapply(glob, function(x) length(unique(x)))
 
 
-#networkDomain ####
+#networkDomain ###
 freq_col(glob, "networkDomain", 10)
 
 tt = as.data.table(freq_col(globThumb, "networkDomain", 10))
@@ -174,7 +174,7 @@ tmp = as.character(tt$Var1)
 
 glob$networkDomain[!glob$networkDomain %in% tmp] = "Autre"
 
-#Country ####
+#Country ###
 freq_col(glob, "country", 10)
 freq_col(globThumb, "country", 10)
 
@@ -183,7 +183,7 @@ tmp = as.character(tt$Var1)
 
 glob$networkDomain[!glob$networkDomain %in% tmp] = "Autre"
 
-# referralPath ####
+# referralPath ###
 freq_col(glob, "referralPath", 10)
 freq_col(globThumb, "referralPath", 10)
 
@@ -192,7 +192,7 @@ tmp = as.character(tt$Var1)
 
 glob$referralPath[!glob$referralPath %in% tmp] = "Autre"
 
-#Region ####
+#Region ###
 freq_col(glob, "region", 10)
 freq_col(globThumb, "region", 30)
 
@@ -201,7 +201,7 @@ tmp = as.character(tt$Var1)
 
 glob$region[!glob$region %in% tmp] = "Autre"
 
-#Source ####
+#Source ###
 freq_col(glob, "source", 10)
 freq_col(globThumb, "source", 3)
 
@@ -210,7 +210,7 @@ tmp = as.character(tt$Var1)
 
 glob$source[!glob$source %in% tmp] = "Autre"
 
-#city ####
+#city ###
 freq_col(glob, "city", 10)
 freq_col(globThumb, "city", 40)
 
@@ -220,16 +220,99 @@ tmp = as.character(tt$Var1)
 glob$city[!glob$city %in% tmp] = "Autre"
 
 
-#city ####
-freq_col(glob, "city", 10)
-freq_col(globThumb, "city", 40)
-
-tt = as.data.table(freq_col(globThumb, "city", 40))
-tmp = as.character(tt$Var1)
-
-glob$city[!glob$city %in% tmp] = "Autre"
 
 
+
+h2o.init(nthreads = -1)
+
+
+
+#https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/gbm-randomforest/GBM_RandomForest_Example.R
+# H2O ####
+
+h2o.init(nthreads = -1)
+###### ### ### ### ### ### ### ### ### ### ###  ### ### ### ### ### ### ### ### ### ### ### 
+###                              Xgboost - Classif
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+
+glob <- glob %>% select(isTransaction,everything()) #pour placer flag pnf en premi?re column
+glob = glob[glob$datasplit == "train"]
+#On enlève char et factors
+
+#char_cols <- unlist(lapply(glob, is.character))
+#glob = glob[, -..char_cols]
+
+#date_cols <- unlist(lapply(glob, is.Date))
+#glob = glob[, -..date_cols]
+
+#current, fread modele1.csv avec stringasfactor=true
+glob = fread("../data/glob_model1_discr_network.csv", na.strings = "", stringsAsFactors = T)
+glob$isTransaction = as.factor(glob$isTransaction)
+
+#Remove des ints inutiles pour la prédiction
+glob=glob[, -c("visitNumber","fullVisitorId","visitStartTime", "datasplit", "visitId", "sessionId","isOnceTransaction", "date", "transactionRevenue","dollarLogTransactionRevenue", "logSumTransactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
+
+# Partition the data into training, validation and test sets
+splits <- h2o.splitFrame(data = as.h2o(glob) 
+                         ,ratios = c(0.6,0.2)  #partition data into 60%, 20%, 20% chunks
+                         ,destination_frames = c("train","valid","test")
+                         ,seed = 1234)  #setting a seed will guarantee reproducibility
+train <- splits[[1]]
+valid <- splits[[2]]
+test <- splits[[3]]
+
+#train = as.h2o(glob[glob$datasplit == "2"]) #Train
+#valid = as.h2o(glob[glob$datasplit == "1"]) #Test
+
+
+
+drf_params1 <- list(max_depth = 100
+                  ,ntrees = 100)
+                  #,mtries = seq(100,400,100))
+
+
+search_criteria2 <- list(strategy = "RandomDiscrete", 
+                         max_models = 100,seed = 1234)
+
+
+# Train and validate a grid of GBMs
+system.time(
+  drf_grid1 <- h2o.grid("xgboost", x = c(2:ncol(glob)), y = 1,
+                        grid_id = "drf_grid2"
+                        ,training_frame = train
+                        ,validation_frame = valid
+                        #,balance_classes = T
+                        ,seed = 1234
+                        ,hyper_params = drf_params1
+                        ,search_criteria = search_criteria2
+                        ,tree_method="hist"
+                        ,grow_policy="lossguide")
+  
+)
+
+# Get the grid results, sorted by AUC
+drf_gridperf1 <- h2o.getGrid(grid_id = "drf_grid2", 
+                             sort_by = "auc", 
+                             decreasing = TRUE)
+
+print(drf_gridperf1) 
+# Grab the model_id for the top GBM model, chosen by validation AUC
+best_drf_model_id <- drf_gridperf1@model_ids[[1]]
+best_drf <- h2o.getModel(best_drf_model_id)
+
+h2o.gainsLift(best_drf, train)
+h2o.gainsLift(best_drf,valid = T)
+h2o.gainsLift(best_drf,test)
+
+
+# Now let's evaluate the model performance on a test set
+# so we get an honest estimate of top model performance
+best_drf_perf <- h2o.performance(model = best_drf, 
+                                 newdata = test)
+
+tt = glob[glob$datasplit == "test"]
+tt = as.h2o(tt)
+h2o.rmse(best_drf, valid = TRUE)
 
 
 
@@ -281,7 +364,6 @@ glob = as.data.table(glob)
 str(glob)
 
 #Auto Dummyfy variables with not to much levels
-sapply(glob, function(x) length(unique(x)))
 
 
 #Getting Categorical Variables with less than 800 levels
@@ -308,93 +390,4 @@ glob = cbind(glob, tmp2)
 
 
 
-#Tests de forets one by one (h2o) ####
-
-h2o.init(nthreads = -1)
-
-
-
-#https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/gbm-randomforest/GBM_RandomForest_Example.R
-# H2O ####
-
-###### ### ### ### ### ### ### ### ### ### ###  ### ### ### ### ### ### ### ### ### ### ### 
-###                              Xgboost - Classif
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-
-glob <- glob %>% select(isTransaction,everything()) #pour placer flag pnf en premi?re column
-
-#On enlève char et factors
-
-#char_cols <- unlist(lapply(glob, is.character))
-#glob = glob[, -..char_cols]
-
-#date_cols <- unlist(lapply(glob, is.Date))
-#glob = glob[, -..date_cols]
-
-#current, fread modele1.csv avec stringasfactor=true
-glob = fread("../data/glob_model1.csv", na.strings = "", stringsAsFactors = T)
-glob$isTransaction = as.factor(glob$isTransaction)
-
-#Remove des ints inutiles pour la prédiction
-glob=glob[, -c("visitNumber","fullVisitorId","visitStartTime", "datasplit", "visitId", "sessionId","isOnceTransaction", "date", "transactionRevenue","dollarLogTransactionRevenue", "logSumTransactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
-
-# Partition the data into training, validation and test sets
-splits <- h2o.splitFrame(data = as.h2o(glob) 
-                         ,ratios = c(0.6,0.2)  #partition data into 60%, 20%, 20% chunks
-                         ,destination_frames = c("train","valid","test")
-                         ,seed = 1234)  #setting a seed will guarantee reproducibility
-train <- splits[[1]]
-valid <- splits[[2]]
-test <- splits[[3]]
-
-train = as.h2o(glob[glob$datasplit == "2"]) #Train
-valid = as.h2o(glob[glob$datasplit == "1"]) #Test
-
-
-
-drf_params1 <- list(max_depth = 100
-                  ,ntrees = 100)
-                  #,mtries = seq(100,400,100))
-
-
-search_criteria2 <- list(strategy = "RandomDiscrete", 
-                         max_models = 100,seed = 1234)
-
-
-# Train and validate a grid of GBMs
-system.time(
-  drf_grid1 <- h2o.grid("xgboost", x = c(2:ncol(glob)), y = 1,
-                        grid_id = "drf_grid2"
-                        ,training_frame = train
-                        ,validation_frame = valid
-                        #,balance_classes = T
-                        ,seed = 1234
-                        ,hyper_params = drf_params1
-                        ,search_criteria = search_criteria2
-                        ,tree_method="hist"
-                        ,grow_policy="lossguide")
-  
-)
-
-# Get the grid results, sorted by AUC
-drf_gridperf1 <- h2o.getGrid(grid_id = "drf_grid2", 
-                             sort_by = "auc", 
-                             decreasing = TRUE)
-
-print(drf_gridperf1) 
-# Grab the model_id for the top GBM model, chosen by validation AUC
-best_drf_model_id <- drf_gridperf1@model_ids[[1]]
-best_drf <- h2o.getModel(best_drf_model_id)
-
-h2o.gainsLift(best_drf)
-h2o.gainsLift(best_drf,valid = T)
-
-# Now let's evaluate the model performance on a test set
-# so we get an honest estimate of top model performance
-best_drf_perf <- h2o.performance(model = best_drf, 
-                                 newdata = test)
-
-tt = glob[glob$datasplit == "test"]
-tt = as.h2o(tt)
-h2o.rmse(best_drf, valid = TRUE)
  
