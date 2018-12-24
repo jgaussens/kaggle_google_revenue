@@ -54,7 +54,7 @@ rm(partiel, train, test) ; gc()
 #Lecture des donn√©es (simplifi√©) ####
 
 glob = fread("../data/glob.csv", stringsAsFactors = F)
-#glob = fread("../data/glob.csv", stringsAsFactors = T)
+
 
 
 ## ### ## ## ### ## ### ## ### ## ### ## 
@@ -158,7 +158,9 @@ freq_col(globThumb, "networkDomain", 20)
 tmp_non_buyer = glob[glob$logSumTransactionRevenue == 0]
 tmp_buyer = glob[glob$logSumTransactionRevenue != 0]
 
+########################
 ## Travail sur les dates
+########################
 
 # CrÈe une var pour les jours de la semaine 
 glob$weekdayy <- weekdays(glob$date) 
@@ -169,8 +171,8 @@ glob$month <- months(glob$date)
 # CrÈe une var pour les jours de la semaine 
 glob$quarter <- quarter(glob$date) 
 
-#Plot les sessions en fonction de factors
-plotSessions <- function(dataframe, factorVariable, topN=10) {
+#Plot les sessions en fonction de factors (vertical)
+plotSessions <- function(dataframe, factorVariable, topN=12) {
   var_col <- enquo(factorVariable)
   dataframe %>% count(!!var_col) %>% top_n(topN, wt=n) %>%
     ggplot(aes_(x=var_col, y=~n, fill=var_col)) +
@@ -180,8 +182,8 @@ plotSessions <- function(dataframe, factorVariable, topN=10) {
     theme(legend.position="none")
 }
 
-#Plot les transactionRevenue en fonction de factors
-plotRevenue <- function(dataframe, factorVariable, topN=10) {
+#Plot les transactionRevenue en fonction de factors (vertical)
+plotRevenue <- function(dataframe, factorVariable, topN=12) {
   var_col <- enquo(factorVariable)
   dataframe %>% group_by(!!var_col) %>% summarize(rev=sum(transactionRevenue)) %>% filter(rev>0) %>% top_n(topN, wt=rev) %>% ungroup() %>%
     ggplot(aes_(x=var_col, y=~rev, fill=var_col)) +
@@ -203,3 +205,107 @@ w5 <- plotSessions(glob, quarter)
 w6 <- plotRevenue(glob, quarter)
 
 grid.arrange(w1, w2, w3, w4, w5, w6)
+
+#Plot les session en fonction de factors (horizontal)
+plotSessionsFlip <- function(dataframe, factorVariable, topN=10) {
+  var_col <- enquo(factorVariable)
+  x <- dataframe %>% count(!!var_col) %>% top_n(topN, wt=n) %>% arrange(n)
+  y <- x[[1]]
+  x %>% ggplot(aes_(x=var_col, y=~n)) + coord_flip() +
+    geom_bar(stat='identity', fill="orange")+
+    scale_y_continuous(labels=comma)+
+    labs(x="", y="number of sessions")+
+    theme(legend.position="none") +
+    scale_x_discrete(limits=y)
+}
+
+#Plot les transactionRevenue en fonction de factors (horizontal)
+plotRevenueFlip <- function(dataframe, factorVariable, topN=10) {
+  var_col <- enquo(factorVariable)
+  x <- dataframe %>% group_by(!!var_col) %>% summarize(rev=sum(transactionRevenue)) %>% filter(rev>0) %>% top_n(topN, wt=rev) %>% arrange(rev) %>% ungroup()
+  y <- x[[1]]
+  x %>% ggplot(aes_(x=var_col, y=~rev)) + coord_flip() +
+    geom_bar(stat='identity', fill="orange")+
+    scale_y_continuous(labels=comma)+
+    labs(x="", y="Revenues (USD)")+
+    theme(legend.position="none") +
+    scale_x_discrete(limits=y)
+}
+
+c1 <- plotSessionsFlip(glob, country, 20)
+c2 <- plotRevenueFlip(glob, country, 20)
+grid.arrange(c1, c2, nrow=1)
+
+
+#Harmonisation des NA du dataset
+na_replacer <- function(data_set, characters_to_replace =  c("not available in demo dataset", "(not provided)",
+                                                             "(not set)", "<NA>", "unknown.unknown",  "(none)", "")) {
+  library(data.table)
+  setDT(data_set)
+  text_features <- names(data_set)[sapply(data_set, class) %in% c("character", "factor")]
+  for (x in text_features) {
+    foo <- data_set[, get(x)]
+    data_set[, eval(x) := ifelse(foo %in% characters_to_replace, NA, foo)]
+  }
+  return(data_set)
+}
+
+plot_missing(glob)
+
+glob <- na_replacer(glob)
+
+# On remplace les NA avec leurs "vrais valeurs"
+
+glob$pageviews[is.na(glob$pageviews)] <- 1
+
+glob$newVisits[is.na(glob$newVisits)] <- 0
+
+glob$bounces[is.na(glob$bounces)] <- 0
+
+glob$isTrueDirect[is.na(glob$isTrueDirect)] <- FALSE
+
+# A partir de la peut etre c'est mieux de laisser juste en NA
+
+glob$country[is.na(glob$country)] <- "Unknown"
+
+# Pour tous les NA qui dÈpendent des pays on pourrait remettre les pays sinon
+glob$subContinent[is.na(glob$subContinent)] <- "Unknown"
+
+glob$continent[is.na(glob$continent)] <- "Unknown"
+
+glob$operatingSystem[is.na(glob$operatingSystem)] <- "Unknown"
+
+# Askip : Direct: Source exactly matches direct AND Medium exactly matches (not set) OR Medium exactly matches (none)
+# Donc est ce que les NA on met "Direct" ?
+ # glob$medium[is.na(glob$medium)] <- "Direct" 
+
+# CrÈation des pÈriode de solde au USA psk une grosses partie des clients viennent de la bas
+
+black_friday <- seq(as.Date("2017/11/23"), as.Date("2017/11/27"),"days")
+president_day <- seq(as.Date("2017/2/17"), as.Date("2017/2/20"),"days")
+memorial_day <- seq(as.Date("2017/5/25"), as.Date("2017/5/29"),"days")
+independence_day <- seq(as.Date("2017/6/30"), as.Date("2017/7/4"),"days")
+back_to_schoo__labor_day <- seq(as.Date("2017/8/26"), as.Date("2017/9/4"),"days")
+colombus_day <- seq(as.Date("2017/10/6"), as.Date("2017/10/9"),"days")
+christmas_sales <- seq(as.Date("2017/12/1"), as.Date("2017/12/26"),"days")
+# IdÈe rajouter en plus les dÈbut/fin d'annÈe psk c'est des goodies qu'on offre aux Ètudiant et plus fin de graduation = solde et achats
+# Aussi saint valentin + fete des meres toussa
+
+
+tempSalesDate <- as.Date(c(black_friday, president_day ,memorial_day ,independence_day ,back_to_schoo__labor_day
+                           ,colombus_day ,christmas_sales))
+
+# ProblËme chaque annÈe certaines dates ne sont pas les meme donc pour l'instant on s'en fout on enleve la date mais du coup on aura pas 100% de accuracy 
+# Les dates sont calÈ sur l'annÈe 2017
+salesDate<-format(tempSalesDate, format="%m-%d")
+
+rm(tempSalesDate,black_friday, president_day ,memorial_day ,independence_day ,back_to_schoo__labor_day,colombus_day ,christmas_sales)
+
+glob$date_without_year <- format(glob$date, format="%m-%d")
+
+glob$isSalesPeriod <- 0
+glob$isSalesPeriod[glob$date_without_year %in% salesDate] = 1
+
+as.data.frame(table(glob$isSalesPeriod))
+
+length(which(glob$month == "juillet" & glob$isTransaction == 1 ))
