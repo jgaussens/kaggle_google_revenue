@@ -184,10 +184,50 @@ tmp = as.character(tt$Var1)
 glob$networkDomain[!glob$networkDomain %in% tmp] = "Autre"
 
 # referralPath ####
+freq_col(glob, "referralPath", 10)
+freq_col(globThumb, "referralPath", 10)
+
+tt = as.data.table(freq_col(globThumb, "referralPath", 2))
+tmp = as.character(tt$Var1)
+
+glob$referralPath[!glob$referralPath %in% tmp] = "Autre"
+
+#Region ####
+freq_col(glob, "region", 10)
+freq_col(globThumb, "region", 30)
+
+tt = as.data.table(freq_col(globThumb, "region", 15))
+tmp = as.character(tt$Var1)
+
+glob$region[!glob$region %in% tmp] = "Autre"
+
+#Source ####
+freq_col(glob, "source", 10)
+freq_col(globThumb, "source", 3)
+
+tt = as.data.table(freq_col(globThumb, "source", 3))
+tmp = as.character(tt$Var1)
+
+glob$source[!glob$source %in% tmp] = "Autre"
+
+#city ####
+freq_col(glob, "city", 10)
+freq_col(globThumb, "city", 40)
+
+tt = as.data.table(freq_col(globThumb, "city", 40))
+tmp = as.character(tt$Var1)
+
+glob$city[!glob$city %in% tmp] = "Autre"
 
 
+#city ####
+freq_col(glob, "city", 10)
+freq_col(globThumb, "city", 40)
 
-  #
+tt = as.data.table(freq_col(globThumb, "city", 40))
+tmp = as.character(tt$Var1)
+
+glob$city[!glob$city %in% tmp] = "Autre"
 
 
 
@@ -211,12 +251,6 @@ backup2 = glob
 
 
 #Removing variables like "not available" ####
-
-is_na_val <- function(x) x %in% c("not available in demo dataset", "(not provided)",
-                                  "(not set)", "<NA>", "unknown.unknown",  "(none)")
-
-
-
 
 
 
@@ -282,14 +316,12 @@ h2o.init(nthreads = -1)
 
 #https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/gbm-randomforest/GBM_RandomForest_Example.R
 # H2O ####
-library(h2o)
-h2o.init(nthreads = -1)
 
 ###### ### ### ### ### ### ### ### ### ### ###  ### ### ### ### ### ### ### ### ### ### ### 
-###                              RANDOM FOREST 
+###                              Xgboost - Classif
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
-glob <- glob %>% select(transactionRevenue,everything()) #pour placer flag pnf en premi?re column
+glob <- glob %>% select(isTransaction,everything()) #pour placer flag pnf en premi?re column
 
 #On enlève char et factors
 
@@ -299,14 +331,16 @@ glob <- glob %>% select(transactionRevenue,everything()) #pour placer flag pnf e
 #date_cols <- unlist(lapply(glob, is.Date))
 #glob = glob[, -..date_cols]
 
-
+#current, fread modele1.csv avec stringasfactor=true
+glob = fread("../data/glob_model1.csv", na.strings = "", stringsAsFactors = T)
+glob$isTransaction = as.factor(glob$isTransaction)
 
 #Remove des ints inutiles pour la prédiction
-glob=glob[, -c("dollarLogTransactionRevenue", "logSumTransactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
+glob=glob[, -c("visitNumber","fullVisitorId","visitStartTime", "datasplit", "visitId", "sessionId","isOnceTransaction", "date", "transactionRevenue","dollarLogTransactionRevenue", "logSumTransactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
 
 # Partition the data into training, validation and test sets
-splits <- h2o.splitFrame(data = as.h2o(glob[glob$datasplit == "train"]) 
-                         ,ratios = c(0.6,0.2)  #partition data into 70%, 15%, 15% chunks
+splits <- h2o.splitFrame(data = as.h2o(glob) 
+                         ,ratios = c(0.6,0.2)  #partition data into 60%, 20%, 20% chunks
                          ,destination_frames = c("train","valid","test")
                          ,seed = 1234)  #setting a seed will guarantee reproducibility
 train <- splits[[1]]
@@ -344,13 +378,16 @@ system.time(
 
 # Get the grid results, sorted by AUC
 drf_gridperf1 <- h2o.getGrid(grid_id = "drf_grid2", 
-                             sort_by = "rmse", 
+                             sort_by = "auc", 
                              decreasing = TRUE)
 
 print(drf_gridperf1) 
 # Grab the model_id for the top GBM model, chosen by validation AUC
 best_drf_model_id <- drf_gridperf1@model_ids[[1]]
 best_drf <- h2o.getModel(best_drf_model_id)
+
+h2o.gainsLift(best_drf)
+h2o.gainsLift(best_drf,valid = T)
 
 # Now let's evaluate the model performance on a test set
 # so we get an honest estimate of top model performance
