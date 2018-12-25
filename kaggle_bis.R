@@ -59,6 +59,7 @@ for (t in tables) {
 glob = fread("../data/glob.csv", stringsAsFactors = F)
 glob = fread("../data/glob.csv", stringsAsFactors = T)
 
+glob = glob[glob$datasplit == "train"]
 #Bibliothèque de fonctions ####
 
 #Harmonisation des NA du dataset
@@ -87,6 +88,57 @@ freq_col <- function(dt, col, top){
   print(ggplot(tt,aes(x= reorder(Var1,-Freq),Freq))+geom_bar(stat ="identity"))
   
   return(tt)
+}
+
+
+
+#Plot les sessions en fonction de factors (vertical)
+plotSessions <- function(dataframe, factorVariable, topN=12) {
+  var_col <- enquo(factorVariable)
+  dataframe %>% count(!!var_col) %>% top_n(topN, wt=n) %>%
+    ggplot(aes_(x=var_col, y=~n, fill=var_col)) +
+    geom_bar(stat='identity')+
+    scale_y_continuous(labels=comma)+
+    labs(x="", y="number of sessions")+
+    theme(legend.position="none")
+}
+
+#Plot les transactionRevenue en fonction de factors (vertical)
+plotRevenue <- function(dataframe, factorVariable, topN=12) {
+  var_col <- enquo(factorVariable)
+  dataframe %>% group_by(!!var_col) %>% summarize(rev=sum(transactionRevenue)) %>% filter(rev>0) %>% top_n(topN, wt=rev) %>% ungroup() %>%
+    ggplot(aes_(x=var_col, y=~rev, fill=var_col)) +
+    geom_bar(stat='identity')+
+    scale_y_continuous(labels=comma)+
+    labs(x="", y="Revenues (USD)")+
+    theme(legend.position="none")
+}
+
+
+#Plot les session en fonction de factors (horizontal)
+plotSessionsFlip <- function(dataframe, factorVariable, topN=10) {
+  var_col <- enquo(factorVariable)
+  x <- dataframe %>% count(!!var_col) %>% top_n(topN, wt=n) %>% arrange(n)
+  y <- x[[1]]
+  x %>% ggplot(aes_(x=var_col, y=~n)) + coord_flip() +
+    geom_bar(stat='identity', fill="orange")+
+    scale_y_continuous(labels=comma)+
+    labs(x="", y="number of sessions")+
+    theme(legend.position="none") +
+    scale_x_discrete(limits=y)
+}
+
+#Plot les transactionRevenue en fonction de factors (horizontal)
+plotRevenueFlip <- function(dataframe, factorVariable, topN=10) {
+  var_col <- enquo(factorVariable)
+  x <- dataframe %>% group_by(!!var_col) %>% summarize(rev=sum(transactionRevenue)) %>% filter(rev>0) %>% top_n(topN, wt=rev) %>% arrange(rev) %>% ungroup()
+  y <- x[[1]]
+  x %>% ggplot(aes_(x=var_col, y=~rev)) + coord_flip() +
+    geom_bar(stat='identity', fill="orange")+
+    scale_y_continuous(labels=comma)+
+    labs(x="", y="Revenues (USD)")+
+    theme(legend.position="none") +
+    scale_x_discrete(limits=y)
 }
 
 
@@ -161,8 +213,8 @@ globThumb = glob[glob$isTransaction == 1]
 globThumb = as.data.table(globThumb)
 
 
-
-#Frequences, discrétisation, etc ####
+# --- --- --- --- ---  FEATURE ENGINEERING --- --- --- --- #
+#Frequences et discrétisations des variables QUALITATIVES ####
 sapply(glob, function(x) length(unique(x)))
 
 
@@ -228,6 +280,55 @@ h2o.init(nthreads = -1)
 
 
 #https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/gbm-randomforest/GBM_RandomForest_Example.R
+
+#Feature engineering sur les Dates et périodes ####
+
+# Cr?e une var pour les jours de la semaine 
+glob$weekdayy <- weekdays(glob$date) 
+
+# Cr?e une var pour les mois de l'a semaine l'ann?e
+glob$month <- months(glob$date) 
+
+# Cr?e une var pour les jours de la semaine 
+glob$quarter <- quarter(glob$date) 
+
+# Cr?ation des p?riode de solde au USA psk une grosses partie des clients viennent de la bas
+
+black_friday <- seq(as.Date("2017/11/23"), as.Date("2017/11/27"),"days")
+president_day <- seq(as.Date("2017/2/17"), as.Date("2017/2/20"),"days")
+memorial_day <- seq(as.Date("2017/5/25"), as.Date("2017/5/29"),"days")
+independence_day <- seq(as.Date("2017/6/30"), as.Date("2017/7/4"),"days")
+back_to_schoo__labor_day <- seq(as.Date("2017/8/26"), as.Date("2017/9/4"),"days")
+colombus_day <- seq(as.Date("2017/10/6"), as.Date("2017/10/9"),"days")
+christmas_sales <- seq(as.Date("2017/12/1"), as.Date("2017/12/26"),"days")
+# Id?e rajouter en plus les d?but/fin d'ann?e psk c'est des goodies qu'on offre aux ?tudiant et plus fin de graduation = solde et achats
+# Aussi saint valentin + fete des meres toussa
+
+
+tempSalesDate <- as.Date(c(black_friday, president_day ,memorial_day ,independence_day ,back_to_schoo__labor_day
+                           ,colombus_day ,christmas_sales))
+
+# Probl?me chaque ann?e certaines dates ne sont pas les meme donc pour l'instant on s'en fout on enleve la date mais du coup on aura pas 100% de accuracy 
+# Les dates sont cal? sur l'ann?e 2017
+salesDate<-format(tempSalesDate, format="%m-%d")
+
+rm(tempSalesDate,black_friday, president_day ,memorial_day ,independence_day ,back_to_schoo__labor_day,colombus_day ,christmas_sales)
+
+glob$date_without_year <- format(glob$date, format="%m-%d")
+
+glob$isSalesPeriod <- 0
+glob$isSalesPeriod[glob$date_without_year %in% salesDate] = 1
+
+as.data.frame(table(glob$isSalesPeriod))
+
+length(which(glob$month == "juillet" & glob$isTransaction == 1 ))
+
+  
+#Retraitement var jules
+glob$quarter = as.factor(glob$quarter)
+glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
+
+# --- --- --- --- MODÉLISATION --- --- --- --- #
 # H2O ####
 
 h2o.init(nthreads = -1)
@@ -235,7 +336,6 @@ h2o.init(nthreads = -1)
 ###                              Xgboost - Classif
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
-glob <- glob %>% select(isTransaction,everything()) #pour placer flag pnf en premi?re column
 glob = glob[glob$datasplit == "train"]
 #On enlève char et factors
 
@@ -246,11 +346,18 @@ glob = glob[glob$datasplit == "train"]
 #glob = glob[, -..date_cols]
 
 #current, fread modele1.csv avec stringasfactor=true
-glob = fread("../data/glob_model1_discr_network.csv", na.strings = "", stringsAsFactors = T)
+glob = fread("../data/glob_model1_discr_network_withDates.csv", na.strings = "", stringsAsFactors = T)
 glob$isTransaction = as.factor(glob$isTransaction)
+glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
+glob$quarter = as.factor(glob$quarter)
+
+glob <- glob %>% select(isTransaction,everything()) 
+glob <- glob %>% select(transactionRevenue,everything()) 
+glob <- glob %>% select(logSumTransactionRevenue,everything()) 
+
 
 #Remove des ints inutiles pour la prédiction
-glob=glob[, -c("visitNumber","fullVisitorId","visitStartTime", "datasplit", "visitId", "sessionId","isOnceTransaction", "date", "transactionRevenue","dollarLogTransactionRevenue", "logSumTransactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
+glob=glob[, -c("visitNumber","fullVisitorId","visitStartTime", "datasplit", "visitId", "sessionId","isOnceTransaction", "date", "isTransaction","dollarLogTransactionRevenue", "transactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
 
 # Partition the data into training, validation and test sets
 splits <- h2o.splitFrame(data = as.h2o(glob) 
@@ -287,12 +394,11 @@ system.time(
                         ,search_criteria = search_criteria2
                         ,tree_method="hist"
                         ,grow_policy="lossguide")
-  
 )
 
 # Get the grid results, sorted by AUC
 drf_gridperf1 <- h2o.getGrid(grid_id = "drf_grid2", 
-                             sort_by = "auc", 
+                             sort_by = "rmse", 
                              decreasing = TRUE)
 
 print(drf_gridperf1) 

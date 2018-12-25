@@ -83,6 +83,65 @@ freq_col <- function(dt, col, top){
 
 
 
+#Plot les sessions en fonction de factors (vertical)
+plotSessions <- function(dataframe, factorVariable, topN=12) {
+  var_col <- enquo(factorVariable)
+  dataframe %>% count(!!var_col) %>% top_n(topN, wt=n) %>%
+    ggplot(aes_(x=var_col, y=~n, fill=var_col)) +
+    geom_bar(stat='identity')+
+    scale_y_continuous(labels=comma)+
+    labs(x="", y="number of sessions")+
+    theme(legend.position="none")
+}
+
+#Plot les transactionRevenue en fonction de factors (vertical)
+plotRevenue <- function(dataframe, factorVariable, topN=12) {
+  var_col <- enquo(factorVariable)
+  dataframe %>% group_by(!!var_col) %>% summarize(rev=sum(transactionRevenue)) %>% filter(rev>0) %>% top_n(topN, wt=rev) %>% ungroup() %>%
+    ggplot(aes_(x=var_col, y=~rev, fill=var_col)) +
+    geom_bar(stat='identity')+
+    scale_y_continuous(labels=comma)+
+    labs(x="", y="Revenues (USD)")+
+    theme(legend.position="none")
+}
+
+
+#Plot les session en fonction de factors (horizontal)
+plotSessionsFlip <- function(dataframe, factorVariable, topN=10) {
+  var_col <- enquo(factorVariable)
+  x <- dataframe %>% count(!!var_col) %>% top_n(topN, wt=n) %>% arrange(n)
+  y <- x[[1]]
+  x %>% ggplot(aes_(x=var_col, y=~n)) + coord_flip() +
+    geom_bar(stat='identity', fill="orange")+
+    scale_y_continuous(labels=comma)+
+    labs(x="", y="number of sessions")+
+    theme(legend.position="none") +
+    scale_x_discrete(limits=y)
+}
+
+#Plot les transactionRevenue en fonction de factors (horizontal)
+plotRevenueFlip <- function(dataframe, factorVariable, topN=10) {
+  var_col <- enquo(factorVariable)
+  x <- dataframe %>% group_by(!!var_col) %>% summarize(rev=sum(transactionRevenue)) %>% filter(rev>0) %>% top_n(topN, wt=rev) %>% arrange(rev) %>% ungroup()
+  y <- x[[1]]
+  x %>% ggplot(aes_(x=var_col, y=~rev)) + coord_flip() +
+    geom_bar(stat='identity', fill="orange")+
+    scale_y_continuous(labels=comma)+
+    labs(x="", y="Revenues (USD)")+
+    theme(legend.position="none") +
+    scale_x_discrete(limits=y)
+}
+
+time_series <- function(dt, col, periode){ #peut être ajouter une option de type de graphique selon ce qu'on veut faire (timeseries, histo ou autre)
+  
+  dt[, `:=` (time_session = .N, var = dt[[col]]), by = periode] #Ajout d'une colonne count qui compte le nombre par mois (faire pareil par jour)
+  
+  ggplot(dt, aes(x=date, y=time_session)) + geom_line(col='blue') + geom_smooth(col='red') +
+    labs(x="", y="Sessions per Day") + scale_x_date(date_breaks = "1 month", date_labels = "%b %d")
+  
+}
+
+
 
 #Traitement de la cible TransactionRevenue, ajout des logs1p pour plus de clarté ####
 glob$transactionRevenue[is.na(glob$transactionRevenue)] <- 0
@@ -159,31 +218,141 @@ plot_missing(globThumb) #Intéréssant de faire le parallèle entre la part des 
 
 
 
-# Analyses en tout genre en vue d'une future discrétisation####
+# Analyses univariées, de dates, Plots etc####
 
-#Ajouter le reste des analyses globales
+#TimeSeries
+time_series(glob, "region", "date")
 
-#Analyse de sessionId, par journ?e, par heure, par navigateur ferm?e ? 
-tmp = glob[, .N, by="sessionId"] 
-tmp
+## Plot en bar plot (Need package Scales et GridExtra)
+options(repr.plot.height=4)
+w1 <- plotSessions(glob, weekdayy)
+w2 <- plotRevenue(glob, weekdayy)
 
-nrow(glob) - nrow(tmp)
-tmp[, .N, by="N"]
+w3 <- plotSessions(glob, month)
+w4 <- plotRevenue(glob, month)
 
+w5 <- plotSessions(glob, quarter)
+w6 <- plotRevenue(glob, quarter)
 
-
-
-
-
-# Discrétisation des variables nécessaires (pour réduire les grosses dimensionnalités) ####
-
-
+grid.arrange(w1, w2, w3, w4, w5, w6)
 
 
+#Plot les transactionRevenue en fonction de factors (horizontal)
+c1 <- plotSessionsFlip(glob, country, 20)
+c2 <- plotRevenueFlip(glob, country, 20)
+grid.arrange(c1, c2, nrow=1)
 
-# Test d'un premier Modèle Pour voir si il y a du jus ####
+
+#Frequences et discrétisations des variables QUALITATIVES ####
+sapply(glob, function(x) length(unique(x)))
+
+
+#networkDomain ###
+freq_col(glob, "networkDomain", 10)
+
+tt = as.data.table(freq_col(globThumb, "networkDomain", 10))
+tmp = as.character(tt$Var1)
+
+glob$networkDomain[!glob$networkDomain %in% tmp] = "Autre"
+
+#Country ###
+freq_col(glob, "country", 10)
+freq_col(globThumb, "country", 10)
+
+tt = as.data.table(freq_col(globThumb, "country", 10))
+tmp = as.character(tt$Var1)
+
+glob$country[!glob$country %in% tmp] = "Autre"
+
+# referralPath ###
+freq_col(glob, "referralPath", 10)
+freq_col(globThumb, "referralPath", 10)
+
+tt = as.data.table(freq_col(globThumb, "referralPath", 2))
+tmp = as.character(tt$Var1)
+
+glob$referralPath[!glob$referralPath %in% tmp] = "Autre"
+
+#Region ###
+freq_col(glob, "region", 10)
+freq_col(globThumb, "region", 30)
+
+tt = as.data.table(freq_col(globThumb, "region", 15))
+tmp = as.character(tt$Var1)
+
+glob$region[!glob$region %in% tmp] = "Autre"
+
+#Source ###
+freq_col(glob, "source", 10)
+freq_col(globThumb, "source", 3)
+
+tt = as.data.table(freq_col(globThumb, "source", 3))
+tmp = as.character(tt$Var1)
+
+glob$source[!glob$source %in% tmp] = "Autre"
+
+#city ###
+freq_col(glob, "city", 10)
+freq_col(globThumb, "city", 40)
+
+tt = as.data.table(freq_col(globThumb, "city", 40))
+tmp = as.character(tt$Var1)
+
+glob$city[!glob$city %in% tmp] = "Autre"
 
 
 
 
 
+
+
+
+#Feature engineering sur les Dates et périodes ####
+
+# Cr?e une var pour les jours de la semaine 
+glob$weekdayy <- weekdays(glob$date) 
+
+# Cr?e une var pour les mois de l'a semaine l'ann?e
+glob$month <- months(glob$date) 
+
+# Cr?e une var pour les jours de la semaine 
+glob$quarter <- quarter(glob$date) 
+
+# Cr?ation des p?riode de solde au USA psk une grosses partie des clients viennent de la bas
+
+black_friday <- seq(as.Date("2017/11/23"), as.Date("2017/11/27"),"days")
+president_day <- seq(as.Date("2017/2/17"), as.Date("2017/2/20"),"days")
+memorial_day <- seq(as.Date("2017/5/25"), as.Date("2017/5/29"),"days")
+independence_day <- seq(as.Date("2017/6/30"), as.Date("2017/7/4"),"days")
+back_to_schoo__labor_day <- seq(as.Date("2017/8/26"), as.Date("2017/9/4"),"days")
+colombus_day <- seq(as.Date("2017/10/6"), as.Date("2017/10/9"),"days")
+christmas_sales <- seq(as.Date("2017/12/1"), as.Date("2017/12/26"),"days")
+# Id?e rajouter en plus les d?but/fin d'ann?e psk c'est des goodies qu'on offre aux ?tudiant et plus fin de graduation = solde et achats
+# Aussi saint valentin + fete des meres toussa
+
+
+tempSalesDate <- as.Date(c(black_friday, president_day ,memorial_day ,independence_day ,back_to_schoo__labor_day
+                           ,colombus_day ,christmas_sales))
+
+# Probl?me chaque ann?e certaines dates ne sont pas les meme donc pour l'instant on s'en fout on enleve la date mais du coup on aura pas 100% de accuracy 
+# Les dates sont cal? sur l'ann?e 2017
+salesDate<-format(tempSalesDate, format="%m-%d")
+
+rm(tempSalesDate,black_friday, president_day ,memorial_day ,independence_day ,back_to_schoo__labor_day,colombus_day ,christmas_sales)
+
+glob$date_without_year <- format(glob$date, format="%m-%d")
+
+glob$isSalesPeriod <- 0
+glob$isSalesPeriod[glob$date_without_year %in% salesDate] = 1
+
+as.data.frame(table(glob$isSalesPeriod))
+
+length(which(glob$month == "juillet" & glob$isTransaction == 1 ))
+
+
+#Retraitement var jules
+glob$quarter = as.factor(glob$quarter)
+glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
+
+
+# Modélisation ####
