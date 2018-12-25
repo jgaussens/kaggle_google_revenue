@@ -144,6 +144,7 @@ plotRevenueFlip <- function(dataframe, factorVariable, topN=10) {
 
 #Traitement de la cible TransactionRevenue, ajout des logs1p pour plus de clarté ####
 glob$transactionRevenue[is.na(glob$transactionRevenue)] <- 0
+glob$transactionRevenue = as.numeric(glob$transactionRevenue)
 
 #Ajout de la colonne log
 glob$dollarLogTransactionRevenue = glob$transactionRevenue / 1000000 #Pour plot plus concrets
@@ -192,7 +193,7 @@ plot_missing(glob)
 
 
 #Removing NA Over 95% (except transactionrevenue)
-
+# Tester SANS
 glob = glob[, !c("adContent", "page", "slot", "adNetworkType", "isVideoAd", "gclId", "campaign", "keyword")]
 
 plot_missing(glob) #Recheck des parts des missings
@@ -273,12 +274,6 @@ glob$city[!glob$city %in% tmp] = "Autre"
 
 
 
-
-
-h2o.init(nthreads = -1)
-
-
-
 #https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/gbm-randomforest/GBM_RandomForest_Example.R
 
 #Feature engineering sur les Dates et périodes ####
@@ -346,10 +341,11 @@ glob = glob[glob$datasplit == "train"]
 #glob = glob[, -..date_cols]
 
 #current, fread modele1.csv avec stringasfactor=true
-glob = fread("../data/glob_model1_discr_network_withDates.csv", na.strings = "", stringsAsFactors = T)
+glob = fread("../data/retest.csv", na.strings = "", stringsAsFactors = T)
 glob$isTransaction = as.factor(glob$isTransaction)
 glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
 glob$quarter = as.factor(glob$quarter)
+#glob$logSumTransactionRevenue = as.numeric(glob$logSumTransactionRevenue)
 
 glob <- glob %>% select(isTransaction,everything()) 
 glob <- glob %>% select(transactionRevenue,everything()) 
@@ -399,7 +395,7 @@ system.time(
 # Get the grid results, sorted by AUC
 drf_gridperf1 <- h2o.getGrid(grid_id = "drf_grid2", 
                              sort_by = "rmse", 
-                             decreasing = TRUE)
+                             decreasing = F)
 
 print(drf_gridperf1) 
 # Grab the model_id for the top GBM model, chosen by validation AUC

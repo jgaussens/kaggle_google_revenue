@@ -145,6 +145,7 @@ time_series <- function(dt, col, periode){ #peut être ajouter une option de typ
 
 #Traitement de la cible TransactionRevenue, ajout des logs1p pour plus de clarté ####
 glob$transactionRevenue[is.na(glob$transactionRevenue)] <- 0
+glob$transactionRevenue = as.numeric(glob$transactionRevenue)
 
 #Ajout de la colonne log
 glob$dollarLogTransactionRevenue = glob$transactionRevenue / 1000000 #Pour plot plus concrets
