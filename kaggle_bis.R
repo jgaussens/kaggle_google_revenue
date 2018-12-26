@@ -337,34 +337,31 @@ glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
 # --- --- --- --- MODÉLISATION --- --- --- --- #
 # H2O ####
 
-h2o.init(nthreads = -1)
 ###### ### ### ### ### ### ### ### ### ### ###  ### ### ### ### ### ### ### ### ### ### ### 
 ###                              Xgboost - Classif
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
-glob = glob[glob$datasplit == "train"]
-#On enlève char et factors
 
-#char_cols <- unlist(lapply(glob, is.character))
-#glob = glob[, -..char_cols]
 
-#date_cols <- unlist(lapply(glob, is.Date))
-#glob = glob[, -..date_cols]
+h2o.init(nthreads = -1)
 
-#current, fread modele1.csv avec stringasfactor=true
 glob = fread("../data/glob_withNA.csv", na.strings = "", stringsAsFactors = T)
 glob$isTransaction = as.factor(glob$isTransaction)
 glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
 glob$quarter = as.factor(glob$quarter)
+
 #glob$logSumTransactionRevenue = as.numeric(glob$logSumTransactionRevenue)
 
-glob <- glob %>% select(isTransaction,everything()) 
+glob <- glob %>% select(isOnceTransaction,everything()) 
+glob <- glob %>% select(fullVisitorId,everything()) 
 glob <- glob %>% select(transactionRevenue,everything()) 
-glob <- glob %>% select(logSumTransactionRevenue,everything()) 
+glob <- glob %>% select(isTransaction,everything()) 
+
+globThumb = glob[glob$isOnceTransaction == 1]
 
 
 #Remove des ints inutiles pour la prédiction
-glob=glob[, -c("visitNumber","fullVisitorId","visitStartTime", "datasplit", "visitId", "sessionId","isOnceTransaction", "date", "logSumTransactionRevenue","dollarLogTransactionRevenue", "transactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
+glob=glob[, -c("gclId", "datasplit", "visitId", "sessionId", "date","dollarLogTransactionRevenue", "logSumTransactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
 
 # Partition the data into training, validation and test sets
 splits <- h2o.splitFrame(data = as.h2o(glob) 
@@ -381,7 +378,9 @@ test <- splits[[3]]
 
 
 drf_params1 <- list(max_depth = 100
-                  ,ntrees = 100)
+                  ,ntrees = 300
+                  , learn_rate = 0.01
+                  , stopping_rounds = 1000)
                   #,mtries = seq(100,400,100))
 
 
@@ -391,7 +390,7 @@ search_criteria2 <- list(strategy = "RandomDiscrete",
 
 # Train and validate a grid of GBMs
 system.time(
-  drf_grid1 <- h2o.grid("xgboost", x = c(2:ncol(glob)), y = 1,
+  drf_grid1 <- h2o.grid("gbm", x = c(5:ncol(glob)), y = 1,
                         grid_id = "drf_grid2"
                         ,training_frame = train
                         ,validation_frame = valid
@@ -399,8 +398,9 @@ system.time(
                         ,seed = 1234
                         ,hyper_params = drf_params1
                         ,search_criteria = search_criteria2
-                        ,tree_method="hist"
-                        ,grow_policy="lossguide")
+                        #,tree_method="hist"
+                        #,grow_policy="lossguide"
+                        )
 )
 
 # Get the grid results, sorted by AUC
@@ -412,6 +412,108 @@ print(drf_gridperf1)
 # Grab the model_id for the top GBM model, chosen by validation AUC
 best_drf_model_id <- drf_gridperf1@model_ids[[1]]
 best_drf <- h2o.getModel(best_drf_model_id)
+best_drf
+
+t =predict(best_drf, valid)
+t = as.data.table(t)
+t[, .N, by="predict"]
+
+#test2 = cbind(test2, t$predict)
+
+
+
+#Regression
+
+globThumb = as.data.table(train)
+globThumb = globThumb[globThumb$isOnceTransaction == 1] #Pour train uniquement sur les gens ayant acheté
+train2 = globThumb
+
+train2 <- train2 %>% select(transactionRevenue,everything()) 
+
+test2 = as.data.table(valid)
+test2
+train2 <- train2 %>% select(transactionRevenue,everything()) 
+
+
+#Variables qu'on veut pas
+
+train2 = as.h2o(train2)
+test2 = as.h2o(test2)
+
+system.time(
+  drf_grid3 <- h2o.grid("gbm", x = c(4:ncol(glob)), y = 1,
+                        grid_id = "drf_grid3"
+                        ,training_frame = train2
+                        ,validation_frame = test2
+                        #,balance_classes = T
+                        ,seed = 1234
+                        ,hyper_params = drf_params1
+                        ,search_criteria = search_criteria2
+                        #,tree_method="hist"
+                        #,grow_policy="lossguide"
+  )
+)
+
+
+drf_gridperf3 <- h2o.getGrid(grid_id = "drf_grid3", 
+                             sort_by = "rmse", 
+                             decreasing = F)
+
+print(drf_gridperf3) 
+
+best_drf_model_id <- drf_gridperf3@model_ids[[1]]
+best_drf <- h2o.getModel(best_drf_model_id)
+best_drf
+
+t2 =predict(best_drf, test2)
+t2 = as.data.table(t2)
+t[, .N, by="predict"]
+
+v = as.data.table(valid)
+final = cbind(v, t$predict, t2$predict)
+final
+
+final$y_transactionRevenue = final$V3
+final$y_transactionRevenue[final$V2 == 0] = 0
+#final$y_transactionRevenue[final$V2 != 0] = final$V3 #### Ici le pb
+
+
+#ajout de logSumtransactionRevenue
+tmp = final[, sum(transactionRevenue), by="fullVisitorId"]
+colnames(tmp) = c("fullVisitorId", "sumTransactionRevenue")
+final = merge(final, tmp, by="fullVisitorId", all.x = TRUE)
+
+final$logTransactionRevenue = log1p(final$transactionRevenue)
+final$logSumTransactionRevenue = log1p(final$sumTransactionRevenue)
+
+#Ajout de predictedLogSumTransactionRevenue
+tmp = final[, sum(y_transactionRevenue), by="fullVisitorId"]
+colnames(tmp) = c("fullVisitorId", "y_sumTransactionRevenue")
+final = merge(final, tmp, by="fullVisitorId", all.x = TRUE)
+
+final$y_logTransactionRevenue = log1p(final$y_transactionRevenue)
+final$y_logSumTransactionRevenue = log1p(final$y_sumTransactionRevenue)
+
+#Les Négatifs <= 0
+final$y_logSumTransactionRevenue[final$y_sumTransactionRevenue < 0] = 0
+
+#refaire logSumTransactionRevenue
+rmse(final$logSumTransactionRevenue, final$y_logSumTransactionRevenue)
+
+
+#Passer à 0 les prédites en 0
+#passer à predict les prédits en 1
+#faire le rmse
+
+#
+
+
+
+
+
+
+
+#
 
 h2o.gainsLift(best_drf, train)
 h2o.gainsLift(best_drf,valid = T)
