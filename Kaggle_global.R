@@ -195,8 +195,8 @@ plot_missing(glob)
 
 
 #Removing NA Over 95% (except transactionrevenue)
-
-glob = glob[, !c("adContent", "page", "slot", "adNetworkType", "isVideoAd", "gclId", "campaign", "keyword")]
+#j'ai commenté pour tester sans
+#glob = glob[, !c("adContent", "page", "slot", "adNetworkType", "isVideoAd", "gclId", "campaign", "keyword")]
 
 plot_missing(glob) #Recheck des parts des missings
 
@@ -244,6 +244,7 @@ c2 <- plotRevenueFlip(glob, country, 20)
 grid.arrange(c1, c2, nrow=1)
 
 
+
 #Frequences et discrétisations des variables QUALITATIVES ####
 sapply(glob, function(x) length(unique(x)))
 
@@ -254,7 +255,7 @@ freq_col(glob, "networkDomain", 10)
 tt = as.data.table(freq_col(globThumb, "networkDomain", 10))
 tmp = as.character(tt$Var1)
 
-glob$networkDomain[!glob$networkDomain %in% tmp] = "Autre"
+glob$networkDomain[!glob$networkDomain %in% tmp & !is.na(glob$networkDomain)] = "Autre"
 
 #Country ###
 freq_col(glob, "country", 10)
@@ -263,7 +264,7 @@ freq_col(globThumb, "country", 10)
 tt = as.data.table(freq_col(globThumb, "country", 10))
 tmp = as.character(tt$Var1)
 
-glob$country[!glob$country %in% tmp] = "Autre"
+glob$country[!glob$country %in% tmp & !is.na(glob$country)] = "Autre"
 
 # referralPath ###
 freq_col(glob, "referralPath", 10)
@@ -272,7 +273,7 @@ freq_col(globThumb, "referralPath", 10)
 tt = as.data.table(freq_col(globThumb, "referralPath", 2))
 tmp = as.character(tt$Var1)
 
-glob$referralPath[!glob$referralPath %in% tmp] = "Autre"
+glob$referralPath[!glob$referralPath %in% tmp & !is.na(glob$referralPath)] = "Autre"
 
 #Region ###
 freq_col(glob, "region", 10)
@@ -281,7 +282,7 @@ freq_col(globThumb, "region", 30)
 tt = as.data.table(freq_col(globThumb, "region", 15))
 tmp = as.character(tt$Var1)
 
-glob$region[!glob$region %in% tmp] = "Autre"
+glob$region[!glob$region %in% tmp & !is.na(glob$region)] = "Autre"
 
 #Source ###
 freq_col(glob, "source", 10)
@@ -290,7 +291,7 @@ freq_col(globThumb, "source", 3)
 tt = as.data.table(freq_col(globThumb, "source", 3))
 tmp = as.character(tt$Var1)
 
-glob$source[!glob$source %in% tmp] = "Autre"
+glob$source[!glob$source %in% tmp & !is.na(glob$source)] = "Autre"
 
 #city ###
 freq_col(glob, "city", 10)
@@ -299,14 +300,22 @@ freq_col(globThumb, "city", 40)
 tt = as.data.table(freq_col(globThumb, "city", 40))
 tmp = as.character(tt$Var1)
 
-glob$city[!glob$city %in% tmp] = "Autre"
+glob$city[!glob$city %in% tmp & !is.na(glob$city)] = "Autre"
+
+#keyword ###
+freq_col(glob, "keyword", 2)
+freq_col(globThumb, "keyword", 4)
+
+tt = as.data.table(freq_col(globThumb, "keyword", 4))
+tmp = as.character(tt$Var1)
+
+glob$keyword[!glob$keyword %in% tmp & !is.na(glob$keyword)] = "Autre"
 
 
 
 
 
-
-
+#https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/gbm-randomforest/GBM_RandomForest_Example.R
 
 #Feature engineering sur les Dates et périodes ####
 
