@@ -195,15 +195,18 @@ plot_missing(glob)
 
 #Removing NA Over 95% (except transactionrevenue)
 # Tester SANS
-glob = glob[, !c("adContent", "page", "slot", "adNetworkType", "isVideoAd", "gclId", "campaign", "keyword")]
+#glob = glob[, !c("adContent", "page", "slot", "adNetworkType", "isVideoAd", "gclId", "campaign", "keyword")]
 
 plot_missing(glob) #Recheck des parts des missings
 
 
-#Retraitement des typages de certaines colonnes 
+#Retraitement des typages de dates 
 
 glob$date = ymd(glob$date)
 glob$transactionRevenue = as.numeric(glob$transactionRevenue)
+
+glob$visitStartTime = as.POSIXct(glob$visitStartTime, tz="UTC", origin='1970-01-01')
+glob$hour = lubridate::hour(glob$visitStartTime)
 
 #Passage de variables en int
 numVars <- c("hits", "bounces", "pageviews", "newVisits")
@@ -211,82 +214,21 @@ glob[, numVars] <- lapply(glob[, ..numVars], as.integer)
 rm(numVars)
 
 
+## On remplace les NA avec leurs "vrais valeurs"
+
+glob$pageviews[is.na(glob$pageviews)] <- 1
+
+glob$newVisits[is.na(glob$newVisits)] <- 0
+
+glob$bounces[is.na(glob$bounces)] <- 0
+
+glob$isTrueDirect[is.na(glob$isTrueDirect)] <- FALSE
+
 globThumb = glob[glob$isTransaction == 1]
 globThumb = as.data.table(globThumb)
 
 
-# --- --- --- --- ---  FEATURE ENGINEERING --- --- --- --- #
-#Frequences et discrétisations des variables QUALITATIVES ####
-sapply(glob, function(x) length(unique(x)))
-
-
-#networkDomain ###
-freq_col(glob, "networkDomain", 10)
-
-tt = as.data.table(freq_col(globThumb, "networkDomain", 10))
-tmp = as.character(tt$Var1)
-
-glob$networkDomain[!glob$networkDomain %in% tmp & !is.na(glob$networkDomain)] = "Autre"
-
-#Country ###
-freq_col(glob, "country", 10)
-freq_col(globThumb, "country", 10)
-
-tt = as.data.table(freq_col(globThumb, "country", 10))
-tmp = as.character(tt$Var1)
-
-glob$country[!glob$country %in% tmp & !is.na(glob$country)] = "Autre"
-
-# referralPath ###
-freq_col(glob, "referralPath", 10)
-freq_col(globThumb, "referralPath", 10)
-
-tt = as.data.table(freq_col(globThumb, "referralPath", 2))
-tmp = as.character(tt$Var1)
-
-glob$referralPath[!glob$referralPath %in% tmp & !is.na(glob$referralPath)] = "Autre"
-
-#Region ###
-freq_col(glob, "region", 10)
-freq_col(globThumb, "region", 30)
-
-tt = as.data.table(freq_col(globThumb, "region", 15))
-tmp = as.character(tt$Var1)
-
-glob$region[!glob$region %in% tmp & !is.na(glob$region)] = "Autre"
-
-#Source ###
-freq_col(glob, "source", 10)
-freq_col(globThumb, "source", 3)
-
-tt = as.data.table(freq_col(globThumb, "source", 3))
-tmp = as.character(tt$Var1)
-
-glob$source[!glob$source %in% tmp & !is.na(glob$source)] = "Autre"
-
-#city ###
-freq_col(glob, "city", 10)
-freq_col(globThumb, "city", 40)
-
-tt = as.data.table(freq_col(globThumb, "city", 40))
-tmp = as.character(tt$Var1)
-
-glob$city[!glob$city %in% tmp & !is.na(glob$city)] = "Autre"
-
-#keyword ###
-freq_col(glob, "keyword", 2)
-freq_col(globThumb, "keyword", 4)
-
-tt = as.data.table(freq_col(globThumb, "keyword", 4))
-tmp = as.character(tt$Var1)
-
-glob$keyword[!glob$keyword %in% tmp & !is.na(glob$keyword)] = "Autre"
-
-
-
-
-
-#https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/gbm-randomforest/GBM_RandomForest_Example.R
+# --- --- --- --- ---  FEATURE ENGINEERING --- --- --- --- # ####
 
 #Frequences et discrétisations des variables QUALITATIVES - mode 2 ####
 sapply(glob, function(x) length(unique(x)))
@@ -360,7 +302,7 @@ glob$keyword[!glob$keyword %in% tmp & !is.na(glob$keyword)] = "Autre"
 
 #https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/gbm-randomforest/GBM_RandomForest_Example.R
 
-#Feature engineering sur les Dates et périodes ####
+#Dates ####
 
 # Cr?e une var pour les jours de la semaine 
 glob$weekdayy <- weekdays(glob$date) 
@@ -418,10 +360,13 @@ glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
 
 h2o.init(nthreads = -1)
 
-glob = fread("../data/glob_withNA_v2.csv", na.strings = "", stringsAsFactors = T)
+glob = fread("../data/glob_noDiscr.csv", na.strings = "", stringsAsFactors = T)
+str(glob)
 glob$isTransaction = as.factor(glob$isTransaction)
 glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
 glob$quarter = as.factor(glob$quarter)
+glob$date = as.Date(glob$date)
+
 
 #glob$logSumTransactionRevenue = as.numeric(glob$logSumTransactionRevenue)
 
@@ -434,7 +379,7 @@ globThumb = glob[glob$isOnceTransaction == 1]
 
 
 #Remove des ints inutiles pour la prédiction
-glob=glob[, -c("gclId", "datasplit", "visitId", "sessionId", "date","dollarLogTransactionRevenue", "logSumTransactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
+glob=glob[, -c("gclId", "date","visitStartTime", "datasplit", "visitId", "sessionId","dollarLogTransactionRevenue", "logSumTransactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
 
 # Partition the data into training, validation and test sets
 splits <- h2o.splitFrame(data = as.h2o(glob) 
@@ -467,8 +412,8 @@ system.time(
                         grid_id = "drf_grid2"
                         ,training_frame = train
                         ,validation_frame = valid
-                        ,nfolds = 10
-                        ,keep_cross_validation_predictions = T
+                        #,nfolds = 5
+                        #,keep_cross_validation_predictions = T
                         #,balance_classes = T
                         ,seed = 1234
                         ,hyper_params = drf_params1
@@ -497,11 +442,19 @@ t[, .N, by="predict"]
 
 
 
-#Regression
+#Regression 
+#pour tester direct sans la classif en amont, pas lancer sur train2 mais sur train et test
+
+
 
 globThumb = as.data.table(train)
 globThumb = globThumb[globThumb$isOnceTransaction == 1] #Pour train uniquement sur les gens ayant acheté
 train2 = globThumb
+
+
+#optionnel si on veut régression directe
+glob <- glob %>% select(transactionRevenue,everything()) 
+
 
 train2 <- train2 %>% select(transactionRevenue,everything()) 
 
@@ -509,8 +462,9 @@ test2 = as.data.table(valid)
 test2
 train2 <- train2 %>% select(transactionRevenue,everything()) 
 
+train2 = train2[, !c("date")]
+test2 = test2[, !c("date")]
 
-#Variables qu'on veut pas
 
 train2 = as.h2o(train2)
 test2 = as.h2o(test2)
@@ -518,8 +472,8 @@ test2 = as.h2o(test2)
 system.time(
   drf_grid3 <- h2o.grid("gbm", x = c(5:ncol(glob)), y = 1,
                         grid_id = "drf_grid3"
-                        ,training_frame = train2
-                        ,validation_frame = test2
+                        ,training_frame = train
+                        ,validation_frame = valid
                         #,balance_classes = T
                         ,seed = 1234
                         ,hyper_params = drf_params1
@@ -536,6 +490,8 @@ drf_gridperf3 <- h2o.getGrid(grid_id = "drf_grid3",
 
 print(drf_gridperf3) 
 
+#test2 = test #Pour tester sur autre chose que valid
+
 best_drf_model_id <- drf_gridperf3@model_ids[[1]]
 best_drf <- h2o.getModel(best_drf_model_id)
 best_drf
@@ -545,18 +501,21 @@ t2 = as.data.table(t2)
 t[, .N, by="predict"]
 
 v = as.data.table(valid)
-final = cbind(v, t$predict, t2$predict)
+final = cbind(v, t$predict, t2$predict) #classif + régression
+final = cbind(v, t2$predict) #régression
+
 final
 
 final$y_transactionRevenue = final$V3
 final$y_transactionRevenue[final$V2 == 0] = 0
-#final$y_transactionRevenue[final$V2 != 0] = final$V3 #### Ici le pb
 
 
 #ajout de logSumtransactionRevenue
 tmp = final[, sum(transactionRevenue), by="fullVisitorId"]
 colnames(tmp) = c("fullVisitorId", "sumTransactionRevenue")
 final = merge(final, tmp, by="fullVisitorId", all.x = TRUE)
+
+#final$y_transactionRevenue[final$y_transactionRevenue < 0] = 0
 
 final$logTransactionRevenue = log1p(final$transactionRevenue)
 final$logSumTransactionRevenue = log1p(final$sumTransactionRevenue)
@@ -580,29 +539,41 @@ rmse(final$logSumTransactionRevenue, final$y_logSumTransactionRevenue)
 #passer à predict les prédits en 1
 #faire le rmse
 
-#
+#régression Directe ####
 
 
 
+h2o.init(nthreads = -1)
+
+glob = fread("../data/glob_noDiscr.csv", na.strings = "", stringsAsFactors = T)
+str(glob)
+glob$isTransaction = as.factor(glob$isTransaction)
+glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
+glob$quarter = as.factor(glob$quarter)
+glob$date = as.Date(glob$date)
 
 
+#glob$logSumTransactionRevenue = as.numeric(glob$logSumTransactionRevenue)
+
+glob <- glob %>% select(isOnceTransaction,everything()) 
+glob <- glob %>% select(fullVisitorId,everything()) 
+glob <- glob %>% select(transactionRevenue,everything()) 
+glob <- glob %>% select(isTransaction,everything()) 
+
+globThumb = glob[glob$isOnceTransaction == 1]
 
 
-#
+#Remove des ints inutiles pour la prédiction
+glob=glob[, -c("gclId", "date","visitStartTime", "datasplit", "visitId", "sessionId","dollarLogTransactionRevenue", "logSumTransactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
 
-h2o.gainsLift(best_drf, train)
-h2o.gainsLift(best_drf,valid = T)
-h2o.gainsLift(best_drf,test)
-
-
-# Now let's evaluate the model performance on a test set
-# so we get an honest estimate of top model performance
-best_drf_perf <- h2o.performance(model = best_drf, 
-                                 newdata = test)
-
-tt = glob[glob$datasplit == "test"]
-tt = as.h2o(tt)
-h2o.rmse(best_drf, valid = TRUE)
+# Partition the data into training, validation and test sets
+splits <- h2o.splitFrame(data = as.h2o(glob) 
+                         ,ratios = c(0.7,0.25)  #partition data into 60%, 20%, 20% chunks
+                         ,destination_frames = c("train","valid","test")
+                         ,seed = 1234)  #setting a seed will guarantee reproducibility
+train <- splits[[1]]
+valid <- splits[[2]]
+test <- splits[[3]]
 
 
 
@@ -621,6 +592,10 @@ tmp_non_buyer = tmp_non_buyer[sample(NROW(tmp_non_buyer), NROW(tmp_non_buyer)*(1
 glob = rbind(tmp_non_buyer, tmp_buyer)
 
 backup2 = glob
+
+
+
+
 
 
 #Removing variables like "not available" ####
@@ -689,16 +664,142 @@ categorical_feature <- names(Filter(is.factor, glob))
 
 
 #Test group by ####
-columnName <- as.symbol(paste0("hits"))
-columnNameSum <- as.symbol(paste0("hits","Sum"))
-columnNameMean <- as.symbol(paste0("hits","Mean"))
-columnNameMedian <- as.symbol(paste0("hits","Median"))
+
+aggregateInteger <- function (df, nameC){
+  
+  columnName <- as.symbol(paste0(nameC))
+  columnNameSum <- as.symbol(paste0(nameC,"Sum"))
+  columnNameMean <- as.symbol(paste0(nameC,"Mean"))
+  columnNameMedian <- as.symbol(paste0(nameC,"Median"))
+  columnNameVar <- as.symbol(paste0(nameC,"Var"))
+  columnNameSd <- as.symbol(paste0(nameC,"Sd"))
+  
+  #Creation des nouvelles colonnes aggrega
+  etape1 <- merge(df, group_by(glob,fullVisitorId) %>% 
+                    summarize(!!columnNameSum := sum(!!columnName),
+                              !!columnNameMean := mean(!!columnName),
+                              !!columnNameMedian := median(!!columnName),
+                              !!columnNameVar := var(!!columnName),
+                              !!columnNameSd := sd(!!columnName)
+                    ))
+  
+  #suppression de la colonne qu'on vient d'aggreger
+  resultat <- etape1 %>% select(-one_of(nameC))
+  
+  return(resultat)
+  
+}
 
 
-test <- merge(glob, group_by(glob,fullVisitorId) %>% 
-                summarize(!!columnNameSum := sum(!!columnName),
-                          !!columnNameMean := mean(!!columnName),
-                          !!columnNameMedian := median(!!columnName)
-                ))
+aggregateCharacter <- function (df, nameC){
+  
+  listeValue <- unique(glob[[nameC]])
+  
+  for(x in listeValue){
+    val <- as.symbol(paste0(x))
+    columnName <- as.symbol(paste0(nameC))
+    columnNamePresence <- as.symbol(paste0(nameC,x,"Presence"))
+    columnNameCount <- as.symbol(paste0(nameC,x,"Count"))
+    
+    
+    #Creation des nouvelles colonnes aggrega
+    df <- merge(df, group_by(glob,fullVisitorId) %>% 
+                  summarise(!!columnNameCount := sum(!!columnName == val)
+                            #!!columnNamePresence := ceiling(sum(!!columnName == val)/(sum(!!columnName == val) + 1))
+                  ))
+  }
+  
+  resultat <- df %>% select(-one_of(nameC))
+  
+  return(resultat)
+}
 
+
+
+#Fonction qui ne garde que les 20 valeurs les plus frequentes pour une colonnes char, les autre valeurs sont transformees en "nomColonneDivers"
+limitCharacter <- function(df, nameC){
+  #print(paste("select ",nameC," ,count(*) as freq from df group by ",nameC," order by count(*) desc", sep = " "))
+  vecChar<-sqldf(paste("select ",nameC," ,count(*) freq from df group by ",nameC," order by count(*) desc", sep = " "))
+  toDelete<-tail(vecChar[[nameC]],n = length(vecChar[[nameC]]) - 20 )
+  df[[nameC]][df[[nameC]] %in% toDelete] <- paste(nameC,"Divers")
+  return(df)
+}
+
+
+glob = aggregateInteger(glob, "hits")
+
+
+
+
+#Frequences et discrétisations des variables QUALITATIVES (old) ####
+sapply(glob, function(x) length(unique(x)))
+
+
+#networkDomain ###
+freq_col(glob, "networkDomain", 10)
+
+tt = as.data.table(freq_col(globThumb, "networkDomain", 10))
+tmp = as.character(tt$Var1)
+
+glob$networkDomain[!glob$networkDomain %in% tmp & !is.na(glob$networkDomain)] = "Autre"
+
+#Country ###
+freq_col(glob, "country", 10)
+freq_col(globThumb, "country", 10)
+
+tt = as.data.table(freq_col(globThumb, "country", 10))
+tmp = as.character(tt$Var1)
+
+glob$country[!glob$country %in% tmp & !is.na(glob$country)] = "Autre"
+
+# referralPath ###
+freq_col(glob, "referralPath", 10)
+freq_col(globThumb, "referralPath", 10)
+
+tt = as.data.table(freq_col(globThumb, "referralPath", 2))
+tmp = as.character(tt$Var1)
+
+glob$referralPath[!glob$referralPath %in% tmp & !is.na(glob$referralPath)] = "Autre"
+
+#Region ###
+freq_col(glob, "region", 10)
+freq_col(globThumb, "region", 30)
+
+tt = as.data.table(freq_col(globThumb, "region", 15))
+tmp = as.character(tt$Var1)
+
+glob$region[!glob$region %in% tmp & !is.na(glob$region)] = "Autre"
+
+#Source ###
+freq_col(glob, "source", 10)
+freq_col(globThumb, "source", 3)
+
+tt = as.data.table(freq_col(globThumb, "source", 3))
+tmp = as.character(tt$Var1)
+
+glob$source[!glob$source %in% tmp & !is.na(glob$source)] = "Autre"
+
+#city ###
+freq_col(glob, "city", 10)
+freq_col(globThumb, "city", 40)
+
+tt = as.data.table(freq_col(globThumb, "city", 40))
+tmp = as.character(tt$Var1)
+
+glob$city[!glob$city %in% tmp & !is.na(glob$city)] = "Autre"
+
+#keyword ###
+freq_col(glob, "keyword", 2)
+freq_col(globThumb, "keyword", 4)
+
+tt = as.data.table(freq_col(globThumb, "keyword", 4))
+tmp = as.character(tt$Var1)
+
+glob$keyword[!glob$keyword %in% tmp & !is.na(glob$keyword)] = "Autre"
+
+
+
+
+
+#https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/gbm-randomforest/GBM_RandomForest_Example.R
 

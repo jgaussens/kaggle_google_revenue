@@ -201,10 +201,13 @@ plot_missing(glob)
 plot_missing(glob) #Recheck des parts des missings
 
 
-#Retraitement des typages de certaines colonnes 
+#Retraitement des typages de dates 
 
 glob$date = ymd(glob$date)
 glob$transactionRevenue = as.numeric(glob$transactionRevenue)
+
+glob$visitStartTime = as.POSIXct(glob$visitStartTime, tz="UTC", origin='1970-01-01')
+glob$hour = lubridate::hour(glob$visitStartTime)
 
 #Passage de variables en int
 numVars <- c("hits", "bounces", "pageviews", "newVisits")
@@ -245,68 +248,68 @@ grid.arrange(c1, c2, nrow=1)
 
 
 
-#Frequences et discrétisations des variables QUALITATIVES ####
+#Frequences et discrétisations des variables QUALITATIVES - mode 2 ####
 sapply(glob, function(x) length(unique(x)))
 
 
 #networkDomain ###
 freq_col(glob, "networkDomain", 10)
 
-tt = as.data.table(freq_col(globThumb, "networkDomain", 10))
+tt = as.data.table(freq_col(glob, "networkDomain", 10))
 tmp = as.character(tt$Var1)
 
 glob$networkDomain[!glob$networkDomain %in% tmp & !is.na(glob$networkDomain)] = "Autre"
 
 #Country ###
 freq_col(glob, "country", 10)
-freq_col(globThumb, "country", 10)
+freq_col(glob, "country", 10)
 
-tt = as.data.table(freq_col(globThumb, "country", 10))
+tt = as.data.table(freq_col(glob, "country", 10))
 tmp = as.character(tt$Var1)
 
 glob$country[!glob$country %in% tmp & !is.na(glob$country)] = "Autre"
 
 # referralPath ###
 freq_col(glob, "referralPath", 10)
-freq_col(globThumb, "referralPath", 10)
+freq_col(glob, "referralPath", 10)
 
-tt = as.data.table(freq_col(globThumb, "referralPath", 2))
+tt = as.data.table(freq_col(glob, "referralPath", 2))
 tmp = as.character(tt$Var1)
 
 glob$referralPath[!glob$referralPath %in% tmp & !is.na(glob$referralPath)] = "Autre"
 
 #Region ###
 freq_col(glob, "region", 10)
-freq_col(globThumb, "region", 30)
+freq_col(glob, "region", 30)
 
-tt = as.data.table(freq_col(globThumb, "region", 15))
+tt = as.data.table(freq_col(glob, "region", 15))
 tmp = as.character(tt$Var1)
 
 glob$region[!glob$region %in% tmp & !is.na(glob$region)] = "Autre"
 
 #Source ###
 freq_col(glob, "source", 10)
-freq_col(globThumb, "source", 3)
+freq_col(glob, "source", 3)
 
-tt = as.data.table(freq_col(globThumb, "source", 3))
+tt = as.data.table(freq_col(glob, "source", 3))
 tmp = as.character(tt$Var1)
 
 glob$source[!glob$source %in% tmp & !is.na(glob$source)] = "Autre"
 
 #city ###
 freq_col(glob, "city", 10)
-freq_col(globThumb, "city", 40)
+freq_col(glob, "city", 40)
 
-tt = as.data.table(freq_col(globThumb, "city", 40))
+tt = as.data.table(freq_col(glob, "city", 40))
 tmp = as.character(tt$Var1)
 
 glob$city[!glob$city %in% tmp & !is.na(glob$city)] = "Autre"
 
 #keyword ###
 freq_col(glob, "keyword", 2)
-freq_col(globThumb, "keyword", 4)
+freq_col(glob, "keyword", 4)
 
-tt = as.data.table(freq_col(globThumb, "keyword", 4))
+tt = as.data.table(freq_col(glob, "keyword", 4))
 tmp = as.character(tt$Var1)
 
 glob$keyword[!glob$keyword %in% tmp & !is.na(glob$keyword)] = "Autre"
@@ -360,9 +363,11 @@ as.data.frame(table(glob$isSalesPeriod))
 length(which(glob$month == "juillet" & glob$isTransaction == 1 ))
 
 
-#Retraitement var jules
-glob$quarter = as.factor(glob$quarter)
-glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
+
 
 
 # Modélisation ####
+
+#Typages des colonnes
+glob$quarter = as.factor(glob$quarter)
+glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
