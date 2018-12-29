@@ -19,6 +19,7 @@ require(ggplot2)
 require(dummies)
 require(h2o)
 require(fastDummies)
+require(Metrics)
 #
 # lecture des données ####
 train<-read.csv("../data/train.csv",stringsAsFactors = FALSE,colClasses=c("character","integer","character","character","character","character","character","character","character","integer","integer","integer")) ; 
@@ -287,6 +288,78 @@ glob$keyword[!glob$keyword %in% tmp & !is.na(glob$keyword)] = "Autre"
 
 #https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/gbm-randomforest/GBM_RandomForest_Example.R
 
+#Frequences et discrétisations des variables QUALITATIVES - mode 2 ####
+sapply(glob, function(x) length(unique(x)))
+
+
+#networkDomain ###
+freq_col(glob, "networkDomain", 10)
+
+tt = as.data.table(freq_col(glob, "networkDomain", 10))
+tmp = as.character(tt$Var1)
+
+glob$networkDomain[!glob$networkDomain %in% tmp & !is.na(glob$networkDomain)] = "Autre"
+
+#Country ###
+freq_col(glob, "country", 10)
+freq_col(glob, "country", 10)
+
+tt = as.data.table(freq_col(glob, "country", 10))
+tmp = as.character(tt$Var1)
+
+glob$country[!glob$country %in% tmp & !is.na(glob$country)] = "Autre"
+
+# referralPath ###
+freq_col(glob, "referralPath", 10)
+freq_col(glob, "referralPath", 10)
+
+tt = as.data.table(freq_col(glob, "referralPath", 2))
+tmp = as.character(tt$Var1)
+
+glob$referralPath[!glob$referralPath %in% tmp & !is.na(glob$referralPath)] = "Autre"
+
+#Region ###
+freq_col(glob, "region", 10)
+freq_col(glob, "region", 30)
+
+tt = as.data.table(freq_col(glob, "region", 15))
+tmp = as.character(tt$Var1)
+
+glob$region[!glob$region %in% tmp & !is.na(glob$region)] = "Autre"
+
+#Source ###
+freq_col(glob, "source", 10)
+freq_col(glob, "source", 3)
+
+tt = as.data.table(freq_col(glob, "source", 3))
+tmp = as.character(tt$Var1)
+
+glob$source[!glob$source %in% tmp & !is.na(glob$source)] = "Autre"
+
+#city ###
+freq_col(glob, "city", 10)
+freq_col(glob, "city", 40)
+
+tt = as.data.table(freq_col(glob, "city", 40))
+tmp = as.character(tt$Var1)
+
+glob$city[!glob$city %in% tmp & !is.na(glob$city)] = "Autre"
+
+#keyword ###
+freq_col(glob, "keyword", 2)
+freq_col(glob, "keyword", 4)
+
+tt = as.data.table(freq_col(glob, "keyword", 4))
+tmp = as.character(tt$Var1)
+
+glob$keyword[!glob$keyword %in% tmp & !is.na(glob$keyword)] = "Autre"
+
+
+
+
+
+#https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/gbm-randomforest/GBM_RandomForest_Example.R
+
 #Feature engineering sur les Dates et périodes ####
 
 # Cr?e une var pour les jours de la semaine 
@@ -345,7 +418,7 @@ glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
 
 h2o.init(nthreads = -1)
 
-glob = fread("../data/glob_withNA.csv", na.strings = "", stringsAsFactors = T)
+glob = fread("../data/glob_withNA_v2.csv", na.strings = "", stringsAsFactors = T)
 glob$isTransaction = as.factor(glob$isTransaction)
 glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
 glob$quarter = as.factor(glob$quarter)
@@ -365,7 +438,7 @@ glob=glob[, -c("gclId", "datasplit", "visitId", "sessionId", "date","dollarLogTr
 
 # Partition the data into training, validation and test sets
 splits <- h2o.splitFrame(data = as.h2o(glob) 
-                         ,ratios = c(0.6,0.2)  #partition data into 60%, 20%, 20% chunks
+                         ,ratios = c(0.7,0.25)  #partition data into 60%, 20%, 20% chunks
                          ,destination_frames = c("train","valid","test")
                          ,seed = 1234)  #setting a seed will guarantee reproducibility
 train <- splits[[1]]
@@ -394,6 +467,8 @@ system.time(
                         grid_id = "drf_grid2"
                         ,training_frame = train
                         ,validation_frame = valid
+                        ,nfolds = 10
+                        ,keep_cross_validation_predictions = T
                         #,balance_classes = T
                         ,seed = 1234
                         ,hyper_params = drf_params1
@@ -406,7 +481,7 @@ system.time(
 # Get the grid results, sorted by AUC
 drf_gridperf1 <- h2o.getGrid(grid_id = "drf_grid2", 
                              sort_by = "auc", 
-                             decreasing = F)
+                             decreasing = T)
 
 print(drf_gridperf1) 
 # Grab the model_id for the top GBM model, chosen by validation AUC
@@ -441,7 +516,7 @@ train2 = as.h2o(train2)
 test2 = as.h2o(test2)
 
 system.time(
-  drf_grid3 <- h2o.grid("gbm", x = c(4:ncol(glob)), y = 1,
+  drf_grid3 <- h2o.grid("gbm", x = c(5:ncol(glob)), y = 1,
                         grid_id = "drf_grid3"
                         ,training_frame = train2
                         ,validation_frame = test2
@@ -601,8 +676,29 @@ tmp2 = tmp2[, -..tmp] #Keeping only integer variables
 glob = cbind(glob, tmp2)
 
 
+# passage en factors auto ####
+glob <- glob %>%
+  select(-fullVisitorId, -visitId, -sessionId, -visitStartTime) %>% 
+  mutate_if(is.character, factor)
 
-
+#keeping vector of categorical features for LGB
+categorical_feature <- names(Filter(is.factor, glob))
 
 
  
+
+
+#Test group by ####
+columnName <- as.symbol(paste0("hits"))
+columnNameSum <- as.symbol(paste0("hits","Sum"))
+columnNameMean <- as.symbol(paste0("hits","Mean"))
+columnNameMedian <- as.symbol(paste0("hits","Median"))
+
+
+test <- merge(glob, group_by(glob,fullVisitorId) %>% 
+                summarize(!!columnNameSum := sum(!!columnName),
+                          !!columnNameMean := mean(!!columnName),
+                          !!columnNameMedian := median(!!columnName)
+                ))
+
+
