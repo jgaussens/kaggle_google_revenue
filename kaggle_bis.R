@@ -78,7 +78,7 @@ na_replacer <- function(data_set, characters_to_replace =  c("not available in d
 
 
 #Fonction de plot frequency
-freq_col <- function(dt, col, top){ 
+plot_histo <- function(dt, col, top){ 
   
   t = table(dt[[col]])
   t = as.data.frame(t)
@@ -216,7 +216,9 @@ rm(numVars)
 
 ## On remplace les NA avec leurs "vrais valeurs"
 
-glob$pageviews[is.na(glob$pageviews)] <- 1
+#glob$pageviews[is.na(glob$pageviews)] <- 1
+glob$pageviews[is.na(glob$pageviews)] <- 0
+
 
 glob$newVisits[is.na(glob$newVisits)] <- 0
 
@@ -235,63 +237,63 @@ sapply(glob, function(x) length(unique(x)))
 
 
 #networkDomain ###
-freq_col(glob, "networkDomain", 10)
+plot_histo(glob, "networkDomain", 10)
 
-tt = as.data.table(freq_col(glob, "networkDomain", 10))
+tt = as.data.table(plot_histo(glob, "networkDomain", 10))
 tmp = as.character(tt$Var1)
 
 glob$networkDomain[!glob$networkDomain %in% tmp & !is.na(glob$networkDomain)] = "Autre"
 
 #Country ###
-freq_col(glob, "country", 10)
-freq_col(glob, "country", 10)
+plot_histo(glob, "country", 10)
+plot_histo(glob, "country", 10)
 
-tt = as.data.table(freq_col(glob, "country", 10))
+tt = as.data.table(plot_histo(glob, "country", 10))
 tmp = as.character(tt$Var1)
 
 glob$country[!glob$country %in% tmp & !is.na(glob$country)] = "Autre"
 
 # referralPath ###
-freq_col(glob, "referralPath", 10)
-freq_col(glob, "referralPath", 10)
+plot_histo(glob, "referralPath", 10)
+plot_histo(glob, "referralPath", 10)
 
-tt = as.data.table(freq_col(glob, "referralPath", 2))
+tt = as.data.table(plot_histo(glob, "referralPath", 2))
 tmp = as.character(tt$Var1)
 
 glob$referralPath[!glob$referralPath %in% tmp & !is.na(glob$referralPath)] = "Autre"
 
 #Region ###
-freq_col(glob, "region", 10)
-freq_col(glob, "region", 30)
+plot_histo(glob, "region", 10)
+plot_histo(glob, "region", 30)
 
-tt = as.data.table(freq_col(glob, "region", 15))
+tt = as.data.table(plot_histo(glob, "region", 15))
 tmp = as.character(tt$Var1)
 
 glob$region[!glob$region %in% tmp & !is.na(glob$region)] = "Autre"
 
 #Source ###
-freq_col(glob, "source", 10)
-freq_col(glob, "source", 3)
+plot_histo(glob, "source", 10)
+plot_histo(glob, "source", 3)
 
-tt = as.data.table(freq_col(glob, "source", 3))
+tt = as.data.table(plot_histo(glob, "source", 3))
 tmp = as.character(tt$Var1)
 
 glob$source[!glob$source %in% tmp & !is.na(glob$source)] = "Autre"
 
 #city ###
-freq_col(glob, "city", 10)
-freq_col(glob, "city", 40)
+plot_histo(glob, "city", 10)
+plot_histo(glob, "city", 40)
 
-tt = as.data.table(freq_col(glob, "city", 40))
+tt = as.data.table(plot_histo(glob, "city", 40))
 tmp = as.character(tt$Var1)
 
 glob$city[!glob$city %in% tmp & !is.na(glob$city)] = "Autre"
 
 #keyword ###
-freq_col(glob, "keyword", 2)
-freq_col(glob, "keyword", 4)
+plot_histo(glob, "keyword", 2)
+plot_histo(glob, "keyword", 4)
 
-tt = as.data.table(freq_col(glob, "keyword", 4))
+tt = as.data.table(plot_histo(glob, "keyword", 4))
 tmp = as.character(tt$Var1)
 
 glob$keyword[!glob$keyword %in% tmp & !is.na(glob$keyword)] = "Autre"
@@ -390,13 +392,21 @@ train <- splits[[1]]
 valid <- splits[[2]]
 test <- splits[[3]]
 
+
+#autre méthode de split
+glob=glob[, -c("gclId","visitStartTime", "datasplit", "visitId", "sessionId","dollarLogTransactionRevenue", "logSumTransactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
+
+train = as.h2o(glob[glob$date < as.Date("2017-04-01")])
+valid = as.h2o(glob[glob$date > as.Date("2017-04-01")])
+
+
 #train = as.h2o(glob[glob$datasplit == "2"]) #Train
 #valid = as.h2o(glob[glob$datasplit == "1"]) #Test
 
 
 
 drf_params1 <- list(max_depth = 100
-                  ,ntrees = 300
+                  ,ntrees = 150
                   , learn_rate = 0.01
                   , stopping_rounds = 1000)
                   #,mtries = seq(100,400,100))
@@ -408,7 +418,7 @@ search_criteria2 <- list(strategy = "RandomDiscrete",
 
 # Train and validate a grid of GBMs
 system.time(
-  drf_grid1 <- h2o.grid("gbm", x = c(5:ncol(glob)), y = 1,
+  drf_grid1 <- h2o.grid("xgboost", x = c(5:ncol(glob)), y = 1,
                         grid_id = "drf_grid2"
                         ,training_frame = train
                         ,validation_frame = valid
@@ -418,8 +428,8 @@ system.time(
                         ,seed = 1234
                         ,hyper_params = drf_params1
                         ,search_criteria = search_criteria2
-                        #,tree_method="hist"
-                        #,grow_policy="lossguide"
+                        ,tree_method="hist"
+                        ,grow_policy="lossguide"
                         )
 )
 
@@ -470,16 +480,16 @@ train2 = as.h2o(train2)
 test2 = as.h2o(test2)
 
 system.time(
-  drf_grid3 <- h2o.grid("gbm", x = c(5:ncol(glob)), y = 1,
+  drf_grid3 <- h2o.grid("xgboost", x = c(5:ncol(glob)), y = 1,
                         grid_id = "drf_grid3"
-                        ,training_frame = train
-                        ,validation_frame = valid
+                        ,training_frame = train2
+                        ,validation_frame = test2
                         #,balance_classes = T
                         ,seed = 1234
                         ,hyper_params = drf_params1
                         ,search_criteria = search_criteria2
-                        #,tree_method="hist"
-                        #,grow_policy="lossguide"
+                        ,tree_method="hist"
+                        ,grow_policy="lossguide"
   )
 )
 
@@ -502,7 +512,6 @@ t[, .N, by="predict"]
 
 v = as.data.table(valid)
 final = cbind(v, t$predict, t2$predict) #classif + régression
-final = cbind(v, t2$predict) #régression
 
 final
 
@@ -515,7 +524,7 @@ tmp = final[, sum(transactionRevenue), by="fullVisitorId"]
 colnames(tmp) = c("fullVisitorId", "sumTransactionRevenue")
 final = merge(final, tmp, by="fullVisitorId", all.x = TRUE)
 
-#final$y_transactionRevenue[final$y_transactionRevenue < 0] = 0
+final$y_transactionRevenue[final$y_transactionRevenue < 0] = 0
 
 final$logTransactionRevenue = log1p(final$transactionRevenue)
 final$logSumTransactionRevenue = log1p(final$sumTransactionRevenue)
@@ -529,7 +538,7 @@ final$y_logTransactionRevenue = log1p(final$y_transactionRevenue)
 final$y_logSumTransactionRevenue = log1p(final$y_sumTransactionRevenue)
 
 #Les Négatifs <= 0
-final$y_logSumTransactionRevenue[final$y_sumTransactionRevenue < 0] = 0
+#final$y_logSumTransactionRevenue[final$y_sumTransactionRevenue < 0] = 0
 
 #refaire logSumTransactionRevenue
 rmse(final$logSumTransactionRevenue, final$y_logSumTransactionRevenue)
@@ -540,8 +549,6 @@ rmse(final$logSumTransactionRevenue, final$y_logSumTransactionRevenue)
 #faire le rmse
 
 #régression Directe ####
-
-
 
 h2o.init(nthreads = -1)
 
@@ -557,8 +564,8 @@ glob$date = as.Date(glob$date)
 
 glob <- glob %>% select(isOnceTransaction,everything()) 
 glob <- glob %>% select(fullVisitorId,everything()) 
-glob <- glob %>% select(transactionRevenue,everything()) 
 glob <- glob %>% select(isTransaction,everything()) 
+glob <- glob %>% select(transactionRevenue,everything()) 
 
 globThumb = glob[glob$isOnceTransaction == 1]
 
@@ -574,6 +581,97 @@ splits <- h2o.splitFrame(data = as.h2o(glob)
 train <- splits[[1]]
 valid <- splits[[2]]
 test <- splits[[3]]
+
+#Split
+glob=glob[, -c("gclId","visitStartTime", "datasplit", "visitId", "sessionId","dollarLogTransactionRevenue", "logSumTransactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
+
+train = glob[glob$date < as.Date("2017-04-01")]
+valid = glob[glob$date > as.Date("2017-04-01")]
+
+train = train[, -c("date")]
+valid = valid[, -c("date")]
+train = as.h2o(train)
+valid = as.h2o(valid)
+
+
+drf_params1 <- list(max_depth = 100
+                    ,ntrees = 300
+                    , learn_rate = 0.01
+                    , stopping_rounds = 1000)
+#,mtries = seq(100,400,100))
+
+
+search_criteria2 <- list(strategy = "RandomDiscrete", 
+                         max_models = 100,seed = 1234)
+
+
+
+
+system.time(
+  drf_grid3 <- h2o.grid("xgboost", x = c(5:ncol(glob)), y = 1,
+                        grid_id = "drf_grid3"
+                        ,training_frame = train
+                        ,validation_frame = valid
+                        #,balance_classes = T
+                        ,seed = 1234
+                        ,hyper_params = drf_params1
+                        ,search_criteria = search_criteria2
+                        ,tree_method="hist"
+                        ,grow_policy="lossguide"
+  )
+)
+
+drf_gridperf3 <- h2o.getGrid(grid_id = "drf_grid3", 
+                             sort_by = "rmse", 
+                             decreasing = F)
+
+print(drf_gridperf3) 
+
+#test2 = test #Pour tester sur autre chose que valid
+
+best_drf_model_id <- drf_gridperf3@model_ids[[1]]
+best_drf <- h2o.getModel(best_drf_model_id)
+best_drf
+
+
+t2 =predict(best_drf, valid)
+t2 = as.data.table(t2)
+t2[, .N, by="predict"]
+
+v = as.data.table(valid)
+final = cbind(v, t2$predict) #régression
+
+
+final
+
+#ajout de logSumtransactionRevenue
+tmp = final[, sum(transactionRevenue), by="fullVisitorId"]
+colnames(tmp) = c("fullVisitorId", "sumTransactionRevenue")
+final = merge(final, tmp, by="fullVisitorId", all.x = TRUE)
+
+#final$y_transactionRevenue[final$y_transactionRevenue < 0] = 0
+
+final$logTransactionRevenue = log1p(final$transactionRevenue)
+final$logSumTransactionRevenue = log1p(final$sumTransactionRevenue)
+
+#Ajout de predictedLogSumTransactionRevenue
+tmp = final[, sum(V2), by="fullVisitorId"]
+colnames(tmp) = c("fullVisitorId", "y_sumTransactionRevenue")
+final = merge(final, tmp, by="fullVisitorId", all.x = TRUE)
+
+final$y_logTransactionRevenue = log1p(final$V2)
+final$y_logSumTransactionRevenue = log1p(final$y_sumTransactionRevenue)
+
+#Les Négatifs <= 0
+final$y_logSumTransactionRevenue[final$y_sumTransactionRevenue < 0] = 0
+
+#refaire logSumTransactionRevenue
+rmse(final$logSumTransactionRevenue, final$y_logSumTransactionRevenue)
+
+
+
+#
+
 
 
 
@@ -736,63 +834,63 @@ sapply(glob, function(x) length(unique(x)))
 
 
 #networkDomain ###
-freq_col(glob, "networkDomain", 10)
+plot_histo(glob, "networkDomain", 10)
 
-tt = as.data.table(freq_col(globThumb, "networkDomain", 10))
+tt = as.data.table(plot_histo(globThumb, "networkDomain", 10))
 tmp = as.character(tt$Var1)
 
 glob$networkDomain[!glob$networkDomain %in% tmp & !is.na(glob$networkDomain)] = "Autre"
 
 #Country ###
-freq_col(glob, "country", 10)
-freq_col(globThumb, "country", 10)
+plot_histo(glob, "country", 10)
+plot_histo(globThumb, "country", 10)
 
-tt = as.data.table(freq_col(globThumb, "country", 10))
+tt = as.data.table(plot_histo(globThumb, "country", 10))
 tmp = as.character(tt$Var1)
 
 glob$country[!glob$country %in% tmp & !is.na(glob$country)] = "Autre"
 
 # referralPath ###
-freq_col(glob, "referralPath", 10)
-freq_col(globThumb, "referralPath", 10)
+plot_histo(glob, "referralPath", 10)
+plot_histo(globThumb, "referralPath", 10)
 
-tt = as.data.table(freq_col(globThumb, "referralPath", 2))
+tt = as.data.table(plot_histo(globThumb, "referralPath", 2))
 tmp = as.character(tt$Var1)
 
 glob$referralPath[!glob$referralPath %in% tmp & !is.na(glob$referralPath)] = "Autre"
 
 #Region ###
-freq_col(glob, "region", 10)
-freq_col(globThumb, "region", 30)
+plot_histo(glob, "region", 10)
+plot_histo(globThumb, "region", 30)
 
-tt = as.data.table(freq_col(globThumb, "region", 15))
+tt = as.data.table(plot_histo(globThumb, "region", 15))
 tmp = as.character(tt$Var1)
 
 glob$region[!glob$region %in% tmp & !is.na(glob$region)] = "Autre"
 
 #Source ###
-freq_col(glob, "source", 10)
-freq_col(globThumb, "source", 3)
+plot_histo(glob, "source", 10)
+plot_histo(globThumb, "source", 3)
 
-tt = as.data.table(freq_col(globThumb, "source", 3))
+tt = as.data.table(plot_histo(globThumb, "source", 3))
 tmp = as.character(tt$Var1)
 
 glob$source[!glob$source %in% tmp & !is.na(glob$source)] = "Autre"
 
 #city ###
-freq_col(glob, "city", 10)
-freq_col(globThumb, "city", 40)
+plot_histo(glob, "city", 10)
+plot_histo(globThumb, "city", 40)
 
-tt = as.data.table(freq_col(globThumb, "city", 40))
+tt = as.data.table(plot_histo(globThumb, "city", 40))
 tmp = as.character(tt$Var1)
 
 glob$city[!glob$city %in% tmp & !is.na(glob$city)] = "Autre"
 
 #keyword ###
-freq_col(glob, "keyword", 2)
-freq_col(globThumb, "keyword", 4)
+plot_histo(glob, "keyword", 2)
+plot_histo(globThumb, "keyword", 4)
 
-tt = as.data.table(freq_col(globThumb, "keyword", 4))
+tt = as.data.table(plot_histo(globThumb, "keyword", 4))
 tmp = as.character(tt$Var1)
 
 glob$keyword[!glob$keyword %in% tmp & !is.na(glob$keyword)] = "Autre"

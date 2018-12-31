@@ -68,7 +68,7 @@ na_replacer <- function(data_set, characters_to_replace =  c("not available in d
 
 
 #Fonction de plot frequency
-freq_col <- function(dt, col, top){ 
+plot_histo <- function(dt, col, top){ 
   
   t = table(dt[[col]])
   t = as.data.frame(t)
@@ -253,63 +253,63 @@ sapply(glob, function(x) length(unique(x)))
 
 
 #networkDomain ###
-freq_col(glob, "networkDomain", 10)
+plot_histo(glob, "networkDomain", 10)
 
-tt = as.data.table(freq_col(glob, "networkDomain", 10))
+tt = as.data.table(plot_histo(glob, "networkDomain", 10))
 tmp = as.character(tt$Var1)
 
 glob$networkDomain[!glob$networkDomain %in% tmp & !is.na(glob$networkDomain)] = "Autre"
 
 #Country ###
-freq_col(glob, "country", 10)
-freq_col(glob, "country", 10)
+plot_histo(glob, "country", 10)
+plot_histo(glob, "country", 10)
 
-tt = as.data.table(freq_col(glob, "country", 10))
+tt = as.data.table(plot_histo(glob, "country", 10))
 tmp = as.character(tt$Var1)
 
 glob$country[!glob$country %in% tmp & !is.na(glob$country)] = "Autre"
 
 # referralPath ###
-freq_col(glob, "referralPath", 10)
-freq_col(glob, "referralPath", 10)
+plot_histo(glob, "referralPath", 10)
+plot_histo(glob, "referralPath", 10)
 
-tt = as.data.table(freq_col(glob, "referralPath", 2))
+tt = as.data.table(plot_histo(glob, "referralPath", 2))
 tmp = as.character(tt$Var1)
 
 glob$referralPath[!glob$referralPath %in% tmp & !is.na(glob$referralPath)] = "Autre"
 
 #Region ###
-freq_col(glob, "region", 10)
-freq_col(glob, "region", 30)
+plot_histo(glob, "region", 10)
+plot_histo(glob, "region", 30)
 
-tt = as.data.table(freq_col(glob, "region", 15))
+tt = as.data.table(plot_histo(glob, "region", 15))
 tmp = as.character(tt$Var1)
 
 glob$region[!glob$region %in% tmp & !is.na(glob$region)] = "Autre"
 
 #Source ###
-freq_col(glob, "source", 10)
-freq_col(glob, "source", 3)
+plot_histo(glob, "source", 10)
+plot_histo(glob, "source", 3)
 
-tt = as.data.table(freq_col(glob, "source", 3))
+tt = as.data.table(plot_histo(glob, "source", 3))
 tmp = as.character(tt$Var1)
 
 glob$source[!glob$source %in% tmp & !is.na(glob$source)] = "Autre"
 
 #city ###
-freq_col(glob, "city", 10)
-freq_col(glob, "city", 40)
+plot_histo(glob, "city", 10)
+plot_histo(glob, "city", 40)
 
-tt = as.data.table(freq_col(glob, "city", 40))
+tt = as.data.table(plot_histo(glob, "city", 40))
 tmp = as.character(tt$Var1)
 
 glob$city[!glob$city %in% tmp & !is.na(glob$city)] = "Autre"
 
 #keyword ###
-freq_col(glob, "keyword", 2)
-freq_col(glob, "keyword", 4)
+plot_histo(glob, "keyword", 2)
+plot_histo(glob, "keyword", 4)
 
-tt = as.data.table(freq_col(glob, "keyword", 4))
+tt = as.data.table(plot_histo(glob, "keyword", 4))
 tmp = as.character(tt$Var1)
 
 glob$keyword[!glob$keyword %in% tmp & !is.na(glob$keyword)] = "Autre"
