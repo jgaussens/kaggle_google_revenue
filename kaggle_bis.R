@@ -362,7 +362,7 @@ glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
 
 h2o.init(nthreads = -1)
 
-glob = fread("../data/glob_noDiscr.csv", na.strings = "", stringsAsFactors = T)
+glob = fread("../data/glob_3112_discr.csv", na.strings = "", stringsAsFactors = T)
 str(glob)
 glob$isTransaction = as.factor(glob$isTransaction)
 glob$isSalesPeriod = as.factor(glob$isSalesPeriod)
@@ -378,6 +378,8 @@ glob <- glob %>% select(transactionRevenue,everything())
 glob <- glob %>% select(isTransaction,everything()) 
 
 globThumb = glob[glob$isOnceTransaction == 1]
+globThumb = glob[glob$isTransaction == 1]
+
 
 
 #Remove des ints inutiles pour la prédiction
@@ -405,9 +407,9 @@ valid = as.h2o(glob[glob$date > as.Date("2017-04-01")])
 
 
 
-drf_params1 <- list(max_depth = 100
+drf_params1 <- list(max_depth = seq(50, 200, 50)
                   ,ntrees = 150
-                  , learn_rate = 0.01
+                  , learn_rate = seq(0.01, 0.1, 0.03)
                   , stopping_rounds = 1000)
                   #,mtries = seq(100,400,100))
 
@@ -439,11 +441,20 @@ drf_gridperf1 <- h2o.getGrid(grid_id = "drf_grid2",
                              decreasing = T)
 
 print(drf_gridperf1) 
+
 # Grab the model_id for the top GBM model, chosen by validation AUC
-best_drf_model_id <- drf_gridperf1@model_ids[[1]]
+#CHANGER ICI POUR PRENDRE PAR Accuracy sur les 1 (faire une fonction)
+
+best_drf_model_id <- drf_gridperf1@model_ids[[5]]
 best_drf <- h2o.getModel(best_drf_model_id)
 best_drf
 
+#métriques
+h2o.confusionMatrix(best_drf, valid = T) #Fonction avec ça
+h2o.gainsLift(best_drf)
+h2o.gainsLift(best_drf, valid = T)
+
+#Récupération des prédictions, pour plus tard
 t =predict(best_drf, valid)
 t = as.data.table(t)
 t[, .N, by="predict"]
@@ -516,7 +527,7 @@ final = cbind(v, t$predict, t2$predict) #classif + régression
 final
 
 final$y_transactionRevenue = final$V3
-final$y_transactionRevenue[final$V2 == 0] = 0
+final$y_transactionRevenue[final$V2 == 0] = 0 #Les classifiés en 0
 
 
 #ajout de logSumtransactionRevenue

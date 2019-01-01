@@ -13,6 +13,12 @@ require(questionr) #Pour un accès visuel facile des proportions par variable
 require(dummies)
 require(dplyr)
 require(ggplot2)
+require(dummies)
+require(h2o)
+require(fastDummies)
+require(Metrics)
+require(DataExplorer)
+
 
 # lecture des données ####
 train<-read.csv("C:/Users/arthu/OneDrive - De Vinci/ESILV/A5/Apprentissage/Kaggle_projet/Data/train.csv",stringsAsFactors = FALSE,colClasses=c("character","integer","character","character","character","character","character","character","character","integer","integer","integer")) ; 
@@ -23,7 +29,7 @@ test<-read.csv("../data/test.csv",stringsAsFactors = FALSE,colClasses=c("charact
 
 
 
-# création d'une colonne indicatrice train test avant assemblage des deux tables ####
+# création d'une colonne indicatrice train test avant assemblage des deux tables ###
 train$datasplit<-"train" ; test$datasplit<-"test"
 # suppression d'une colonne visiblement inutile
 train$campaignCode<-NULL ; test$campaignCode<-NULL
@@ -51,6 +57,7 @@ rm(partiel, train, test) ; gc()
 glob = fread("../data/glob.csv", stringsAsFactors = T)
 glob = fread("../data/glob.csv", stringsAsFactors = F)
 
+glob = glob[glob$datasplit == "train"]
 #Bibliothèque de fonctions ####
 
 #Harmonisation des NA du dataset
@@ -142,8 +149,41 @@ time_series <- function(dt, col, periode){ #peut être ajouter une option de typ
 }
 
 
+#####  Analyses des données et traitements ######
 
-#Traitement de la cible TransactionRevenue, ajout des logs1p pour plus de clarté ####
+### --- --- --- Analyses GLOBALES --- --- --- ###
+
+#Exploration
+str(glob)
+summary(glob)
+
+
+#Visualiser le nombre de modalités par colonne, et enlever celles uniques
+sapply(glob, function(x) length(unique(x)))
+#Retrait des variables n'ayant qu'une seule modalité
+todrop <- names(glob)[which(sapply(glob,uniqueN)<2)]
+glob[, (todrop) := NULL]
+rm(todrop)
+
+
+#Traitement des NA
+na_replacer(glob) #Fonction pour enlever les NA au global
+
+
+
+#Retraitement des typages de dates 
+glob$date = ymd(glob$date)
+glob$transactionRevenue = as.numeric(glob$transactionRevenue)
+
+glob$visitStartTime = as.POSIXct(glob$visitStartTime, tz="UTC", origin='1970-01-01')
+glob$hour = lubridate::hour(glob$visitStartTime)
+
+#Passage de variables en int
+numVars <- c("hits", "bounces", "pageviews", "newVisits")
+glob[, numVars] <- lapply(glob[, ..numVars], as.integer)
+rm(numVars)
+
+#Traitement de la cible TransactionRevenue #
 glob$transactionRevenue[is.na(glob$transactionRevenue)] <- 0
 glob$transactionRevenue = as.numeric(glob$transactionRevenue)
 
@@ -166,63 +206,11 @@ glob$isTransaction[glob$transactionRevenue == 0] = 0
 glob$isOnceTransaction[glob$sumTransactionRevenue != 0] = 1
 glob$isOnceTransaction[glob$sumTransactionRevenue == 0] = 0
 
-
-
-
-## ### ## ## ### ## ### ## ### ## ### ## 
-
-#Traitement et Remove des NA, Remove de certaines colonnes ####
-## ### ## ## ### ## ### ## ### ## ### ##
-
-#Exploration
-str(glob)
-summary(glob)
-
-
-#Visualiser le nombre de modalités par colonne, et enlever celles uniques
-sapply(glob, function(x) length(unique(x)))
-
-todrop <- names(glob)[which(sapply(glob,uniqueN)<2)]
-glob[, (todrop) := NULL]
-rm(todrop)
-
-
-#Traitement des NA
-na_replacer(glob) #Fonction pour enlever les NA au global
-
-require(DataExplorer)
+#Plot des NA
 plot_missing(glob)
 
 
-#Removing NA Over 95% (except transactionrevenue)
-#j'ai commenté pour tester sans
-#glob = glob[, !c("adContent", "page", "slot", "adNetworkType", "isVideoAd", "gclId", "campaign", "keyword")]
-
-plot_missing(glob) #Recheck des parts des missings
-
-
-#Retraitement des typages de dates 
-
-glob$date = ymd(glob$date)
-glob$transactionRevenue = as.numeric(glob$transactionRevenue)
-
-glob$visitStartTime = as.POSIXct(glob$visitStartTime, tz="UTC", origin='1970-01-01')
-glob$hour = lubridate::hour(glob$visitStartTime)
-
-#Passage de variables en int
-numVars <- c("hits", "bounces", "pageviews", "newVisits")
-glob[, numVars] <- lapply(glob[, ..numVars], as.integer)
-rm(numVars)
-
-
-globThumb = glob[glob$isTransaction == 1]
-globThumb = as.data.table(globThumb)
-
-plot_missing(globThumb) #Intéréssant de faire le parallèle entre la part des NA sur Glob et sur globTHumb
-
-
-
-# Analyses univariées, de dates, Plots etc####
+### --- --- --- Analyses Univariées --- --- --- ###
 
 #TimeSeries
 time_series(glob, "region", "date")
@@ -248,7 +236,7 @@ grid.arrange(c1, c2, nrow=1)
 
 
 
-#Frequences et discrétisations des variables QUALITATIVES - mode 2 ####
+#Frequences et discrétisations des variables QUALITATIVES - mode 2 ###
 sapply(glob, function(x) length(unique(x)))
 
 
@@ -320,7 +308,7 @@ glob$keyword[!glob$keyword %in% tmp & !is.na(glob$keyword)] = "Autre"
 
 #https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/gbm-randomforest/GBM_RandomForest_Example.R
 
-#Feature engineering sur les Dates et périodes ####
+#Feature Engineering ####
 
 # Cr?e une var pour les jours de la semaine 
 glob$weekdayy <- weekdays(glob$date) 
