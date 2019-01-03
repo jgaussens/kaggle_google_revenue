@@ -214,6 +214,8 @@ glob[, numVars] <- lapply(glob[, ..numVars], as.integer)
 rm(numVars)
 
 
+
+
 ## On remplace les NA avec leurs "vrais valeurs"
 
 #glob$pageviews[is.na(glob$pageviews)] <- 1
@@ -774,30 +776,37 @@ categorical_feature <- names(Filter(is.factor, glob))
 
 #Test group by ####
 
-aggregateInteger <- function (df, nameC){
+#HomeMade group by Ici icii iciii
+
+
+#Aggregat
+aggregateInteger <- function (dt, col){
+
+  tmp1 = dt[, sum(eval(col)), by="fullVisitorId"]
+  colnames(tmp1) = c("fullVisitorId",paste0(col,"Sum"))
   
-  columnName <- as.symbol(paste0(nameC))
-  columnNameSum <- as.symbol(paste0(nameC,"Sum"))
-  columnNameMean <- as.symbol(paste0(nameC,"Mean"))
-  columnNameMedian <- as.symbol(paste0(nameC,"Median"))
-  columnNameVar <- as.symbol(paste0(nameC,"Var"))
-  columnNameSd <- as.symbol(paste0(nameC,"Sd"))
+  tmp2 = dt[, mean(eval(col)), by="fullVisitorId"]
+  colnames(tmp2) = c("fullVisitorId",paste0(col,"Mean"))
   
-  #Creation des nouvelles colonnes aggrega
-  etape1 <- merge(df, group_by(glob,fullVisitorId) %>% 
-                    summarize(!!columnNameSum := sum(!!columnName),
-                              !!columnNameMean := mean(!!columnName),
-                              !!columnNameMedian := median(!!columnName),
-                              !!columnNameVar := var(!!columnName),
-                              !!columnNameSd := sd(!!columnName)
-                    ))
+  tmp3 = dt[, median(eval(col)), by="fullVisitorId"]
+  colnames(tmp3) = c("fullVisitorId",paste0(col,"Median"))
   
-  #suppression de la colonne qu'on vient d'aggreger
-  resultat <- etape1 %>% select(-one_of(nameC))
+  tmp4 = dt[, var(eval(col)), by="fullVisitorId"]
+  colnames(tmp4) = c("fullVisitorId",paste0(col,"Variance"))
   
-  return(resultat)
+  tmp5 = dt[, sd(eval(col)), by="fullVisitorId"]
+  colnames(tmp5) = c("fullVisitorId",paste0(col,"Sd"))
+  
+  tmpFinal = Reduce(function(x, y) merge(x, y, all=TRUE), list(tmp1, tmp2, tmp3, tmp4, tmp5))
+  
+  dt = merge(dt, tmpFinal, by = "fullVisitorId", all.x = TRUE)
+  
+  return(dt)
   
 }
+
+aggregateInteger(glob, quote(hits))
+
 
 
 aggregateCharacter <- function (df, nameC){
@@ -824,6 +833,25 @@ aggregateCharacter <- function (df, nameC){
 }
 
 
+glob=glob[, -c("gclId", "date","visitStartTime", "datasplit", "visitId", "sessionId","dollarLogTransactionRevenue", "logSumTransactionRevenue", "sumTransactionRevenue","logTransactionRevenue", "datasplit_test", "datasplit_train")]
+
+
+numVars <- c("hits", "bounces", "pageviews", "newVisits")
+glob[, numVars] <- lapply(glob[, ..numVars], aggregateInteger)
+
+glob = aggregateInteger(glob, "hits")
+glob = aggregateInteger(glob, "bounces")
+glob = aggregateInteger(glob, "pageviews")
+glob = aggregateInteger(glob, "newVisits")
+
+
+categorical_feature <- names(Filter(is.character, glob))
+categorical_feature
+
+sapply(names(glob[, ..numVars]), function(x) aggregateCharacter(glob,x))
+
+
+
 
 #Fonction qui ne garde que les 20 valeurs les plus frequentes pour une colonnes char, les autre valeurs sont transformees en "nomColonneDivers"
 limitCharacter <- function(df, nameC){
@@ -835,7 +863,6 @@ limitCharacter <- function(df, nameC){
 }
 
 
-glob = aggregateInteger(glob, "hits")
 
 
 
