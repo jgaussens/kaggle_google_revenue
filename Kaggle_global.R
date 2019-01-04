@@ -57,12 +57,11 @@ rm(partiel, train, test) ; gc()
 
 
 #Lecture directe du fichier (plus rapide que la lecture totale puis le retraitement des JSONS) ####
-glob = fread("../data/glob.csv", stringsAsFactors = T)
 glob = fread("../data/glob.csv", stringsAsFactors = F)
 
 glob = glob[glob$datasplit == "train"]
-#Bibliothèque de fonctions ####
 
+#Bibliothèque de fonctions ####
 #Harmonisation des NA du dataset
 na_replacer <- function(data_set, characters_to_replace =  c("not available in demo dataset", "(not provided)",
                                                              "(not set)", "<NA>", "unknown.unknown",  "(none)", "")) {
@@ -222,7 +221,7 @@ glob$hour = lubridate::hour(glob$visitStartTime)
 # Cr?e une var pour les jours de la semaine 
 glob$weekdayy <- weekdays(glob$date) 
 
-# Cr?e une var pour les mois de l'a semaine l'ann?e
+# Cr?e une var pour les mois de la semaine l'ann?e
 glob$month <- months(glob$date) 
 
 # Cr?e une var pour les jours de la semaine 
@@ -285,9 +284,8 @@ plot_histo(glob, "keyword", 10)
 
 #Feature Engineering ####
 
-
 #Ajout de colonne Soldes
-# Cr?ation des p?riode de solde au USA psk une grosses partie des clients viennent de la bas
+# Création des période de solde au USA psk une grosses partie des clients viennent de la bas
 
 black_friday <- seq(as.Date("2017/11/23"), as.Date("2017/11/27"),"days")
 president_day <- seq(as.Date("2017/2/17"), as.Date("2017/2/20"),"days")
@@ -296,16 +294,12 @@ independence_day <- seq(as.Date("2017/6/30"), as.Date("2017/7/4"),"days")
 back_to_schoo__labor_day <- seq(as.Date("2017/8/26"), as.Date("2017/9/4"),"days")
 colombus_day <- seq(as.Date("2017/10/6"), as.Date("2017/10/9"),"days")
 christmas_sales <- seq(as.Date("2017/12/1"), as.Date("2017/12/26"),"days")
-# Id?e rajouter en plus les d?but/fin d'ann?e psk c'est des goodies qu'on offre aux ?tudiant et plus fin de graduation = solde et achats
-# Aussi saint valentin + fete des meres toussa
 
 
 tempSalesDate <- as.Date(c(black_friday, president_day ,memorial_day ,independence_day ,back_to_schoo__labor_day
                            ,colombus_day ,christmas_sales))
 
-
-# Probl?me chaque ann?e certaines dates ne sont pas les meme donc pour l'instant on s'en fout on enleve la date mais du coup on aura pas 100% de accuracy 
-# Les dates sont cal? sur l'ann?e 2017
+# Les dates sont calées sur l'année 2017
 salesDate<-format(tempSalesDate, format="%m-%d")
 
 rm(tempSalesDate,black_friday, president_day ,memorial_day ,independence_day ,back_to_schoo__labor_day,colombus_day ,christmas_sales)
@@ -476,10 +470,10 @@ rmse(final$logSumTransactionRevenue, final$y_logSumTransactionRevenue)
 
 
 
-#Section Classification isTransaction Puis Régression transactionRevenue ####
+#Section Classification de isTransaction puis Régression transactionRevenue ####
 #glob = fread("../data/glob_final.csv") #Pour accès plus rapide aux données
-#Typages des colonnes#
 
+#Typages des colonnes#
 #Passage en factors
 glob <- glob %>%
   mutate_if(is.character, factor)
@@ -563,7 +557,7 @@ h2o.confusionMatrix(best_model, valid = T)
 h2o.gainsLift(best_model)
 h2o.gainsLift(best_model, valid = T)
 
-best_model = h2o::h2o.loadModel("../data/h2o_best_model_classif/model_grid1_model_0")
+#best_model = h2o::h2o.loadModel("../data/h2o_best_model_classif/model_grid1_model_0")
 #Récupération des prédictions, pour plus tard
 t =predict(best_model, valid)
 t = as.data.table(t)
