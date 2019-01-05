@@ -3,3 +3,5 @@
 *.Rdata
 *.Rhistory
 *.DS_Store
+*.Rda
+*.csv
