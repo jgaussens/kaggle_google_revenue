@@ -6,6 +6,7 @@ setwd(wd)
 rm(wd)
 getwd()
 
+#Librairies
 require(jsonlite) 
 require(data.table)
 require(lubridate)
@@ -139,18 +140,18 @@ plotRevenueFlip <- function(dataframe, factorVariable, topN=10) {
     scale_x_discrete(limits=y)
 }
 
-time_series <- function(dt, col, periode){ #peut être ajouter une option de type de graphique selon ce qu'on veut faire (timeseries, histo ou autre)
+time_series <- function(dt, col, periode){
   
-  dt[, `:=` (time_session = .N, var = dt[[col]]), by = periode] #Ajout d'une colonne count qui compte le nombre par mois (faire pareil par jour)
+  dt[, `:=` (time_session = .N, var = dt[[col]]), by = periode]
   
   ggplot(dt, aes(x=date, y=time_session)) + geom_line(col='blue') + geom_smooth(col='red') +
     labs(x="", y="Sessions per Day") + scale_x_date(date_breaks = "1 month", date_labels = "%b %d")
   
 }
 
-time_series_sum <- function(dt, col, periode){ #peut être ajouter une option de type de graphique selon ce qu'on veut faire (timeseries, histo ou autre)
+time_series_sum <- function(dt, col, periode){ 
   
-  tmp = dt[,(sum(dt[[col]])), by = periode] #Ajout d'une colonne count qui compte le nombre par mois (faire pareil par jour)
+  tmp = dt[,(sum(dt[[col]])), by = periode] 
   
   ggplot(tmp, aes(x=date, y=V1)) + geom_line(col='blue') + geom_smooth(col='red') +
     labs(x="", y="Revenue per Day") + scale_x_date(date_breaks = "1 month", date_labels = "%b %d")
@@ -284,9 +285,21 @@ plot_histo(glob, "keyword", 10)
 
 #Feature Engineering ####
 
-#Ajout de colonne Soldes
-# Création des période de solde au USA psk une grosses partie des clients viennent de la bas
+#Retraitements
+glob$pageviews[is.na(glob$pageviews)] <- 1
 
+glob$newVisits[is.na(glob$newVisits)] <- 0
+
+glob$bounces[is.na(glob$bounces)] <- 0
+
+glob$isTrueDirect[is.na(glob$isTrueDirect)] <- FALSE
+
+globThumb = glob[glob$isTransaction == 1]
+globThumb = as.data.table(globThumb)
+
+
+#Ajout de colonnes
+# Création des périodes de solde au USA
 black_friday <- seq(as.Date("2017/11/23"), as.Date("2017/11/27"),"days")
 president_day <- seq(as.Date("2017/2/17"), as.Date("2017/2/20"),"days")
 memorial_day <- seq(as.Date("2017/5/25"), as.Date("2017/5/29"),"days")
