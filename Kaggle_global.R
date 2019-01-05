@@ -285,7 +285,7 @@ plot_histo(glob, "keyword", 10)
 
 #Feature Engineering ####
 
-#Retraitements
+### --- --- --- Retraitements --- --- --- ###
 glob$pageviews[is.na(glob$pageviews)] <- 1
 
 glob$newVisits[is.na(glob$newVisits)] <- 0
@@ -298,7 +298,7 @@ globThumb = glob[glob$isTransaction == 1]
 globThumb = as.data.table(globThumb)
 
 
-#Ajout de colonnes
+### --- --- --- Ajout de colonnes --- --- --- ###
 # Création des périodes de solde au USA
 black_friday <- seq(as.Date("2017/11/23"), as.Date("2017/11/27"),"days")
 president_day <- seq(as.Date("2017/2/17"), as.Date("2017/2/20"),"days")
